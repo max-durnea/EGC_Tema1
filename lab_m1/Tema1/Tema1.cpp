@@ -32,11 +32,11 @@ void Tema1::Init()
  
 
     // Initialize square grid
-    grid.resize(gridRows);
-    for (int r = 0; r < gridRows; r++)
-        grid[r].resize(gridCols);
-    for (int i = 0; i < gridRows; i++) {
-        for (int j = 0; j < gridCols; j++) {
+    grid.resize(gridCols);
+    for (int r = 0; r < gridCols; r++)
+        grid[r].resize(gridRows);
+    for (int i = 0; i < gridCols; i++) {
+        for (int j = 0; j < gridRows; j++) {
             Cell cell;
             cell.pos = glm::vec2(i * squareSize, j * squareSize);
             cell.size = squareSize;
@@ -59,13 +59,16 @@ void Tema1::FrameStart()
 
     glm::ivec2 resolution = window->GetResolution();
     glViewport(0, 0, resolution.x, resolution.y);
+
     // Draw grid
     DrawGrid();
 
-    // Draw bumper at mouse position
+    // Draw placed bumpers on the grid
+    DrawPlacedBumpers();
 
     // Draw left panel slots
     DrawLeftPanel();
+
     // Draw a bumper in each slot of the left panel
     for (int i = 0; i < 4; i++) {
         float slotX = 0 + (offsetGridX - 10) / 2;
@@ -77,7 +80,7 @@ void Tema1::FrameStart()
 void Tema1::Update(float deltaTimeSeconds)
 {
 
-    DrawBumper(mouseXPos, mouseYPos + squareSize / 2);
+    //DrawBumper(mouseXPos, mouseYPos + squareSize / 2);
 }
 
 void Tema1::FrameEnd()
@@ -123,11 +126,11 @@ void Tema1::OnWindowResize(int width, int height)
     // recalc dynamic sizes
     float availableWidth  = width * 0.6f;
     float availableHeight = height * 0.9f;
-    squareSize = std::min(availableWidth / gridRows, availableHeight / gridCols);
+    squareSize = std::min(availableWidth / gridCols, availableHeight / gridRows);
     padding = squareSize * 0.2f;
 
-    float gridWidth  = gridRows * squareSize + padding;
-    float gridHeight = gridCols * squareSize + padding;
+    float gridWidth  = gridCols * squareSize + padding;
+    float gridHeight = gridRows * squareSize + padding;
 
     offsetGridX = width - gridWidth - padding;
     offsetGridY = padding;
@@ -170,22 +173,63 @@ void Tema1::CheckSquareClick(int mouseX, int mouseY, int button, int mods) {
         }
     }
 
-    // If no panel slot was clicked, check grid squares
+    // If no panel slot was clicked, check grid squares for bumper placement
     if (!panelSlotFound) {
         bool squareFound = false;
-        for (int i = 0; i < gridRows && !squareFound; i++) {
-            for (int j = 0; j < gridCols && !squareFound; j++) {
+        for (int i = 0; i < gridCols && !squareFound; i++) {
+            for (int j = 0; j < gridRows && !squareFound; j++) {
                 float cellX = i * squareSize + padding + offsetGridX;
                 float cellY = j * squareSize + padding + offsetGridY;
 
                 if (mouseX >= cellX && mouseX <= cellX + squareSize - padding &&
                     mouseY_gl >= cellY && mouseY_gl <= cellY + squareSize - padding) {
-                    grid[i][j].highlighted = !grid[i][j].highlighted;
-                    grid[i][j].color = grid[i][j].highlighted ? glm::vec3(1, 0, 0) : glm::vec3(1, 1, 1);
+
+                    // Try to place a bumper at this position
+                    // Bumper needs: 3 squares wide (i-1, i, i+1) and 2 squares tall (j, j+1)
+                    // Center column is i, so we need i-1 and i+1 to exist
+                    if (TryPlaceBumper(i, j)) {
+                        printf("Bumper placed at grid position: [%d, %d]\n", i, j);
+                    }
+                    else {
+                        printf("Cannot place bumper at [%d, %d] - not enough space\n", i, j);
+                    }
                     squareFound = true;
                 }
             }
         }
+    }
+}
+bool Tema1::TryPlaceBumper(int centerCol, int row) {
+    // Check if we have enough space:
+    // - 3 columns: centerCol-1, centerCol, centerCol+1
+    // - 2 rows: row, row+1
+
+    if (centerCol - 1 < 0 || row + 1 >= gridCols) {
+        return false;
+    }
+
+    // Store the bumper position for rendering
+    PlacedBumper bumper;
+    bumper.gridX = centerCol;
+    bumper.gridY = row;
+    bumper.color = glm::vec3(1, 1, 0); // Yellow for semicircle
+    placedBumpers.push_back(bumper);
+
+    return true;
+}
+void Tema1::DrawPlacedBumpers() {
+    for (const auto& bumper : placedBumpers) {
+        // Calculate world position from grid position
+        // The bumper's center is at the center column, bottom row
+        float worldX = bumper.gridX * squareSize + padding + offsetGridX + squareSize / 2.0f;
+        float worldY = bumper.gridY * squareSize + padding + offsetGridY;
+
+        modelMatrix = glm::mat3(1);
+        modelMatrix *= transform2D::Translate(worldX, worldY);
+        modelMatrix *= transform2D::Scale(squareSize, squareSize);
+
+        RenderMesh2D(meshes["bumper_semi"], modelMatrix, bumper.color);
+        RenderMesh2D(meshes["bumper_square"], modelMatrix, glm::vec3(0, 0, 1));
     }
 }
 
@@ -268,8 +312,8 @@ void Tema1::DrawLeftPanel() {
     }
 }
 void Tema1::DrawGrid() {
-    for (int i = 0; i < gridRows; i++) {
-        for (int j = 0; j < gridCols; j++) {
+    for (int i = 0; i < gridCols; i++) {
+        for (int j = 0; j < gridRows; j++) {
             modelMatrix = glm::mat3(1);
             modelMatrix *= transform2D::Translate(i * squareSize + padding + offsetGridX, j * squareSize + padding + offsetGridY);
             modelMatrix *= transform2D::Scale(squareSize - padding, squareSize - padding);
@@ -282,8 +326,8 @@ void Tema1::DrawGrid() {
         }
     }
 
-    float frameHeight = gridCols * squareSize + padding;
-    float frameWidth = gridRows * squareSize + padding;
+    float frameHeight = gridRows * squareSize + padding;
+    float frameWidth = gridCols * squareSize + padding;
 
     modelMatrix = glm::mat3(1);
     modelMatrix *= transform2D::Translate(offsetGridX, offsetGridY);

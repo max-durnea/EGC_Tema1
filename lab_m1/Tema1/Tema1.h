@@ -17,7 +17,11 @@ namespace m1
         bool highlighted;
         glm::vec3 color;
     };
-
+    struct PlacedBumper {
+        int gridX;  // center column position
+        int gridY;  // bottom row position
+        glm::vec3 color;
+    };
     class Tema1 : public gfxc::SimpleScene
     {
     public:
@@ -47,13 +51,15 @@ namespace m1
 		void DrawBumper(int x, int y);
         void DrawLeftPanel();
         void CreateSquareAndFrame();
+        bool TryPlaceBumper(int centerCol, int row);
+        void DrawPlacedBumpers();
         int mouseYPos;
         int mouseXPos;
         // TODO(student): Class variables go here
         glm::mat3 modelMatrix;
 		int squareSize = 50;
-		int gridRows = 17;
-		int gridCols = 9;
+		int gridCols = 17;
+		int gridRows = 9;
 		int offsetGridX = 350;
 		int offsetGridY = 50;
 		//int frameThickness = 5;
@@ -62,7 +68,7 @@ namespace m1
         float frameHeight = gridCols * squareSize + padding;
         float frameWidth = gridRows * squareSize + padding;
 		std::vector<std::vector<Cell>> grid;
-
+        std::vector<PlacedBumper> placedBumpers;
         PanelSlot leftPanelSlots[4];
 
     };
