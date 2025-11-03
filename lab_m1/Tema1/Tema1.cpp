@@ -74,30 +74,30 @@ void Tema1::FrameStart()
     float slotWidth = (offsetGridX - 10) / 2;
     float slotHeight = window->GetResolution().y / 4.0f;
 
-    DrawBumper(slotWidth, slotHeight / 2);  // bumper in first slot
-	DrawBlock(slotWidth-squareSize/2, (slotHeight + slotHeight / 2)+squareSize/2);  // block in second slot
-    DrawCannon(slotWidth - squareSize / 2, 2*(slotHeight + slotHeight / 2) + squareSize / 2);
-    DrawMotor(slotWidth - squareSize / 2, 3 * (slotHeight + slotHeight / 2) + squareSize / 2);
+    // Draw shapes in left panel slots (centered in each slot)
+    DrawMotor(slotWidth, slotHeight * 0.5f);                    // Slot 0 (bottom)
+    DrawCannon(slotWidth, slotHeight * 1.5f);                   // Slot 1
+    DrawBlock(slotWidth, slotHeight * 2.5f);                    // Slot 2
+    DrawBumper(slotWidth, slotHeight * 3.5f - squareSize / 2);    // Slot 3 (top)
 }
 
 void Tema1::Update(float deltaTimeSeconds)
 {
-
     if (isDragging && draggedShape != "") {
-
         float drawX = mouseXPos;
         float drawY = window->GetResolution().y - mouseYPos;
-
-        modelMatrix = glm::mat3(1);
-        modelMatrix *= transform2D::Translate(drawX, drawY);
-        modelMatrix *= transform2D::Scale(squareSize, squareSize);
 
         if (draggedShape == "bumper") {
             DrawBumper(mouseXPos, mouseYPos + squareSize / 2);
         }
-        else {
-            // normal single mesh
-            RenderMesh2D(meshes[draggedShape], modelMatrix, glm::vec3(1, 1, 1));
+        else if (draggedShape == "block") {
+            DrawBlock(mouseXPos, mouseYPos);
+        }
+        else if (draggedShape == "cannon") {
+            DrawCannon(mouseXPos, mouseYPos);
+        }
+        else if (draggedShape == "motor") {
+            DrawMotor(mouseXPos, mouseYPos);
         }
     }
 }
@@ -198,22 +198,59 @@ void Tema1::CreateBumperSemicircle() {
 
 
 void Tema1::CreateMotor() {
-    /*float width = 1.0f;
-    float height = 2.0f;
-    std::vector<VertexFormat> vertices{
-        { {0,0,0} }, { {width,0,0} }, { {0,height,0} }, { {width,height,0} }
+    // Motor base (1x1 square at bottom) - colored top part
+    float size = 1.0f;
+    std::vector<VertexFormat> baseVertices{
+        { {-size / 2, -size, 0} },
+        { {size / 2, -size, 0} },
+        { {-size / 2, 0, 0} },
+        { {size / 2, 0, 0} }
     };
-    std::vector<unsigned int> indices{ 0,1,2, 2,1,3 };
-    CreateMesh("motor", vertices, indices);*/
+    std::vector<unsigned int> baseIndices{ 0,1,2, 2,1,3 };
+    CreateMesh("motor_base", baseVertices, baseIndices);
+
+    // Motor flame (triangle on top, 1 square tall) - orange/red flame
+    std::vector<VertexFormat> flameVertices{
+        { {-size / 2, 0, 0} },      // bottom left
+        { {size / 2, 0, 0} },       // bottom right
+        { {0, size, 0} }          // top center
+    };
+    std::vector<unsigned int> flameIndices{ 0,1,2 };
+    CreateMesh("motor_flame", flameVertices, flameIndices);
 }
 void Tema1::CreateCannon() {
-    /*float width = 1.0f;
-    float height = 3.0f;
-    std::vector<VertexFormat> vertices{
-        { {0,0,0} }, { {width,0,0} }, { {0,height,0} }, { {width,height,0} }
+    // Cannon is 1x3 squares tall with multiple gray sections
+    float width = 1.0f;
+
+    // Base section (dark gray) - bottom square
+    std::vector<VertexFormat> baseVertices{
+        { {-width / 2, -1.5f, 0} },
+        { {width / 2, -1.5f, 0} },
+        { {-width / 2, -0.5f, 0} },
+        { {width / 2, -0.5f, 0} }
     };
-    std::vector<unsigned int> indices{ 0,1,2, 2,1,3 };
-    CreateMesh("cannon", vertices, indices);*/
+    std::vector<unsigned int> baseIndices{ 0,1,2, 2,1,3 };
+    CreateMesh("cannon_base", baseVertices, baseIndices);
+
+    // Middle section (medium gray)
+    std::vector<VertexFormat> midVertices{
+        { {-width / 2, -0.5f, 0} },
+        { {width / 2, -0.5f, 0} },
+        { {-width / 2, 0.5f, 0} },
+        { {width / 2, 0.5f, 0} }
+    };
+    std::vector<unsigned int> midIndices{ 0,1,2, 2,1,3 };
+    CreateMesh("cannon_mid", midVertices, midIndices);
+
+    // Barrel section (light gray) - top square
+    std::vector<VertexFormat> barrelVertices{
+        { {-width / 2, 0.5f, 0} },
+        { {width / 2, 0.5f, 0} },
+        { {-width / 2, 1.5f, 0} },
+        { {width / 2, 1.5f, 0} }
+    };
+    std::vector<unsigned int> barrelIndices{ 0,1,2, 2,1,3 };
+    CreateMesh("cannon_barrel", barrelVertices, barrelIndices);
 }
 
 void Tema1::CheckSquareClick(int mouseX, int mouseY, int button, int mods) {
@@ -238,21 +275,21 @@ void Tema1::CheckSquareClick(int mouseX, int mouseY, int button, int mods) {
             leftPanelSlots[i].color = leftPanelSlots[i].highlighted ? glm::vec3(1, 1, 1) : glm::vec3(0, 0, 0);
             panelSlotFound = true;
             printf("Left panel slot %d clicked\n", i);
-            if (i == 3) {
+            if (i == 0) {
                 isDragging = true;
                 draggedShape = "bumper";
-            }
-            else if (i == 2)
-            {
-                isDragging = true;
-                draggedShape = "block";
             }
             else if (i == 1)
             {
                 isDragging = true;
+                draggedShape = "block";
+            }
+            else if (i == 2)
+            {
+                isDragging = true;
                 draggedShape = "cannon";
             }
-            else if (i == 0)
+            else if (i == 3)
             {
                 isDragging = true;
                 draggedShape = "motor";
@@ -384,12 +421,15 @@ void Tema1::CreateBumperSquare() {
     CreateMesh("bumper_square", vertices, indices);
 }
 void Tema1::CreateBlock() {
-    /*float size = 1.0f;
+    float size = 1.0f;
     std::vector<VertexFormat> vertices{
-        { {0,0,0} }, { {size,0,0} }, { {0,size,0} }, { {size,size,0} }
+        { {-size / 2, -size / 2, 0} },
+        { {size / 2, -size / 2, 0} },
+        { {-size / 2, size / 2, 0} },
+        { {size / 2, size / 2, 0} }
     };
     std::vector<unsigned int> indices{ 0,1,2, 2,1,3 };
-    CreateMesh("block", vertices, indices);*/
+    CreateMesh("block", vertices, indices);
 }
 
 void Tema1::DrawBumper(int x, int y) {
@@ -403,33 +443,38 @@ void Tema1::DrawBumper(int x, int y) {
     RenderMesh2D(meshes["bumper_semi"], modelMatrix, glm::vec3(1, 1, 0));
     RenderMesh2D(meshes["bumper_square"], modelMatrix, glm::vec3(0, 0, 1));
 }
-void Tema1::DrawBlock(int x, int y){
-    /*y = window->GetResolution().y - y;
+void Tema1::DrawBlock(int x, int y) {
+    y = window->GetResolution().y - y;
     modelMatrix = glm::mat3(1);
     modelMatrix *= transform2D::Translate(x, y);
-    // Scale by squareSize to convert from grid units to pixels
     modelMatrix *= transform2D::Scale(squareSize, squareSize);
-    RenderMesh2D(meshes["block"], modelMatrix, glm::vec3(1, 0, 1));*/
-}
-void Tema1::DrawCannon(int x, int y) {
-    /*double window_height = window->GetResolution().y;
-    double rect_height = window_height / 4.0;
-    y = window->GetResolution().y - y;
-    modelMatrix = glm::mat3(1);
-    modelMatrix *= transform2D::Translate(x, rect_height+padding);
-    modelMatrix *= transform2D::Scale(squareSize, squareSize);
-    RenderMesh2D(meshes["cannon"], modelMatrix, glm::vec3(0, 1, 0));*/
+    RenderMesh2D(meshes["block"], modelMatrix, glm::vec3(1, 0, 1));
 }
 
+void Tema1::DrawCannon(int x, int y) {
+    y = window->GetResolution().y - y;
+
+    modelMatrix = glm::mat3(1);
+    modelMatrix *= transform2D::Translate(x, y);
+    modelMatrix *= transform2D::Scale(squareSize, squareSize);
+
+    // Draw three sections with different gray shades
+    RenderMesh2D(meshes["cannon_base"], modelMatrix, glm::vec3(0.3f, 0.3f, 0.3f));    // Dark gray
+    RenderMesh2D(meshes["cannon_mid"], modelMatrix, glm::vec3(0.5f, 0.5f, 0.5f));     // Medium gray
+    RenderMesh2D(meshes["cannon_barrel"], modelMatrix, glm::vec3(0.7f, 0.7f, 0.7f));  // Light gray
+}
 
 void Tema1::DrawMotor(int x, int y) {
-    /*double window_height = window->GetResolution().y;
-    double rect_height = window_height / 4.0;
     y = window->GetResolution().y - y;
+
     modelMatrix = glm::mat3(1);
-    modelMatrix *= transform2D::Translate(x, padding);
+    modelMatrix *= transform2D::Translate(x, y);
     modelMatrix *= transform2D::Scale(squareSize, squareSize);
-    RenderMesh2D(meshes["motor"], modelMatrix, glm::vec3(1, 1, 0));*/
+
+    // Draw base (colored block at top)
+    RenderMesh2D(meshes["motor_base"], modelMatrix, glm::vec3(0.2f, 0.6f, 0.9f));  // Blue base
+    // Draw flame (orange/red at bottom)
+    RenderMesh2D(meshes["motor_flame"], modelMatrix, glm::vec3(1.0f, 0.4f, 0.0f)); // Orange flame
 }
 
 void Tema1::DrawLeftPanel() {
