@@ -65,13 +65,16 @@ void Tema1::Init()
     meshes["frame"]->SetDrawMode(GL_LINES); 
     printf("Hello World!\n");
     //initialize square grid
+    grid.resize(gridRows);
+    for (int r = 0; r < gridRows; r++)
+        grid[r].resize(gridCols);
     for (int i = 0; i < gridRows; i++) {
         for(int j = 0; j < gridCols; j++) {
             Cell cell;
             cell.pos = glm::vec2(i * squareSize, j * squareSize);
             cell.size = squareSize;
             cell.highlighted = false;
-            grid.push_back(cell);
+			grid[i][j] = cell;
 		}
     }
 }
@@ -141,7 +144,7 @@ void Tema1::Update(float deltaTimeSeconds)
             modelMatrix = glm::mat3(1);
             modelMatrix *= transform2D::Translate(i * squareSize + padding+offsetGridX, j * squareSize + padding+offsetGridY);
             modelMatrix *= transform2D::Scale(squareSize-padding,squareSize-padding);
-            RenderMesh2D(meshes["square"], modelMatrix, grid[i * gridCols + j].color);
+            RenderMesh2D(meshes["square"], modelMatrix, grid[i][j].color);
             modelMatrix = glm::mat3(1);
             modelMatrix *= transform2D::Translate(i * squareSize + padding + offsetGridX, j * squareSize + padding + offsetGridY);
             modelMatrix *= transform2D::Scale(squareSize-padding, squareSize-padding);
@@ -204,15 +207,14 @@ void Tema1::OnMouseBtnPress(int mouseX, int mouseY, int button, int mods)
 	bool squareFound = false;
     for (int i = 0; i < gridRows&&!squareFound; i++) {
         for (int j = 0; j < gridCols&&!squareFound; j++) {
-            int index = i * gridCols + j;
             float cellX = i * squareSize + padding + offsetGridX;
             float cellY = j * squareSize + padding + offsetGridY;
 			printf("Checking square at row: %d, col: %d\n", i, j);
             if (mouseX >= cellX && mouseX <= cellX + squareSize - padding &&
                 mouseY_gl >= cellY && mouseY_gl <= cellY + squareSize - padding) {
 				printf("Square clicked at row: %d, col: %d\n", i, j);
-                grid[index].highlighted = !grid[index].highlighted;
-                grid[index].color = grid[index].highlighted ? glm::vec3(1, 0, 0) : glm::vec3(1, 1, 1);
+                grid[i][j].highlighted = !grid[i][j].highlighted;
+                grid[i][j].color = grid[i][j].highlighted ? glm::vec3(1, 0, 0) : glm::vec3(1, 1, 1);
 				squareFound = true;
             }
         }

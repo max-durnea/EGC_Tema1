@@ -3,6 +3,7 @@
 #include "components/simple_scene.h"
 #include <vector> 
 #include "utils/glm_utils.h"
+
 namespace m1
 {
     struct Cell {
@@ -45,10 +46,9 @@ namespace m1
 		int padding = 13;
         float frameHeight = gridCols * squareSize + padding;
         float frameWidth = gridRows * squareSize + padding;
-        std::vector<Cell> grid;
+		std::vector<std::vector<Cell>> grid;
     };
 };   // namespace m1
-
 
 
 namespace transform2D
