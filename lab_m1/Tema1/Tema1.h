@@ -53,6 +53,12 @@ namespace m1
         void CreateSquareAndFrame();
         bool TryPlaceBumper(int centerCol, int row);
         void DrawPlacedBumpers();
+        void CreateBlock();
+        void CreateCannon();
+        void CreateMotor();
+        void DrawBlock(int x, int y);
+        void DrawCannon(int x, int y);
+        void DrawMotor(int x, int y);
         int mouseYPos;
         int mouseXPos;
         // TODO(student): Class variables go here
@@ -70,6 +76,8 @@ namespace m1
 		std::vector<std::vector<Cell>> grid;
         std::vector<PlacedBumper> placedBumpers;
         PanelSlot leftPanelSlots[4];
+		bool isDragging = false;
+		std::string draggedShape = "";
 
     };
 };   // namespace m1
