@@ -71,7 +71,7 @@ void Tema1::FrameStart()
     // Draw left panel slots
     DrawLeftPanel();
 
-    float slotWidth = (offsetGridX - 10) / 2;
+    float slotWidth = offsetGridX / 2;
     float slotHeight = window->GetResolution().y / 4.0f;
 
     // Draw shapes in left panel slots (centered in each slot)
@@ -196,6 +196,17 @@ void Tema1::CreateBumperSemicircle() {
 
 
 
+void Tema1::CreateBlock() {
+    float size = 1.0f;
+    std::vector<VertexFormat> vertices{
+        { {-size / 2, -size / 2, 0} },
+        { {size / 2, -size / 2, 0} },
+        { {-size / 2, size / 2, 0} },
+        { {size / 2, size / 2, 0} }
+    };
+    std::vector<unsigned int> indices{ 0,1,2, 2,1,3 };
+    CreateMesh("block", vertices, indices);
+}
 
 void Tema1::CreateMotor() {
     // Motor base (1x1 square at bottom) - colored top part
@@ -260,7 +271,7 @@ void Tema1::CheckSquareClick(int mouseX, int mouseY, int button, int mods) {
     // Check left panel slots first
     double window_height = window->GetResolution().y;
     double rect_height = window_height / 4.0;
-    double panelWidth = offsetGridX - 10;
+    double panelWidth = offsetGridX;
 
     bool panelSlotFound = false;
     for (int i = 0; i < 4 && !panelSlotFound; i++) {
@@ -420,17 +431,7 @@ void Tema1::CreateBumperSquare() {
 
     CreateMesh("bumper_square", vertices, indices);
 }
-void Tema1::CreateBlock() {
-    float size = 1.0f;
-    std::vector<VertexFormat> vertices{
-        { {-size / 2, -size / 2, 0} },
-        { {size / 2, -size / 2, 0} },
-        { {-size / 2, size / 2, 0} },
-        { {size / 2, size / 2, 0} }
-    };
-    std::vector<unsigned int> indices{ 0,1,2, 2,1,3 };
-    CreateMesh("block", vertices, indices);
-}
+
 
 void Tema1::DrawBumper(int x, int y) {
     y = window->GetResolution().y - y;
@@ -484,7 +485,7 @@ void Tema1::DrawLeftPanel() {
     for (int i = 0; i < 4; i++) {
         modelMatrix = glm::mat3(1);
         modelMatrix *= transform2D::Translate(0, i * rect_height);
-        modelMatrix *= transform2D::Scale(offsetGridX - 9, rect_height);
+        modelMatrix *= transform2D::Scale(offsetGridX, rect_height);
         RenderMesh2D(meshes["frame"], modelMatrix, glm::vec3(0, 1, 0));
     }
 }
