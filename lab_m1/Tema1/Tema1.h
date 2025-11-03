@@ -12,6 +12,12 @@ namespace m1
         bool highlighted; 
         glm::vec3 color = glm::vec3(1, 1, 1);
     };
+    // Add this struct definition (if you don't already have it)
+    struct PanelSlot {
+        bool highlighted;
+        glm::vec3 color;
+    };
+
     class Tema1 : public gfxc::SimpleScene
     {
     public:
@@ -34,6 +40,15 @@ namespace m1
         void OnMouseScroll(int mouseX, int mouseY, int offsetX, int offsetY) override;
         void OnWindowResize(int width, int height) override;
         void CreateMesh(const char* name, const std::vector<VertexFormat>& vertices, const std::vector<unsigned int>& indices);
+        void DrawGrid();
+        void CheckSquareClick(int mouseX, int mouseY, int button, int mods);
+        void CreateBumperSemicircle();
+        void CreateBumperSquare();
+		void DrawBumper(int x, int y);
+        void DrawLeftPanel();
+        void CreateSquareAndFrame();
+        int mouseYPos;
+        int mouseXPos;
         // TODO(student): Class variables go here
         glm::mat3 modelMatrix;
 		int squareSize = 50;
@@ -43,10 +58,13 @@ namespace m1
 		int offsetGridY = 50;
 		//int frameThickness = 5;
         int frameSize = squareSize;
-		int padding = 13;
+		int padding = 5;
         float frameHeight = gridCols * squareSize + padding;
         float frameWidth = gridRows * squareSize + padding;
 		std::vector<std::vector<Cell>> grid;
+
+        PanelSlot leftPanelSlots[4];
+
     };
 };   // namespace m1
 
