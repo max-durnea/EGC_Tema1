@@ -11,6 +11,7 @@ namespace m1
         float size;
         bool highlighted; 
         glm::vec3 color = glm::vec3(1, 1, 1);
+		std::string content = ""; // "bumper", "block"
     };
     // Add this struct definition (if you don't already have it)
     struct PanelSlot {
@@ -22,6 +23,11 @@ namespace m1
         int gridY;  // bottom row position
         glm::vec3 color;
     };
+    struct PlacedBlock {
+        int gridX;
+        int gridY;
+        glm::vec3 color;
+	};
     class Tema1 : public gfxc::SimpleScene
     {
     public:
@@ -52,6 +58,7 @@ namespace m1
         void DrawLeftPanel();
         void CreateSquareAndFrame();
         bool TryPlaceBumper(int centerCol, int row);
+        bool TryRemoveBumper(int centerCol, int row); // <- new: remove placed bumper
         void DrawPlacedBumpers();
         void CreateBlock();
         void CreateCannon();
@@ -59,6 +66,15 @@ namespace m1
         void DrawBlock(int x, int y);
         void DrawCannon(int x, int y);
         void DrawMotor(int x, int y);
+        bool TryPlaceBlock(int i, int j);
+        void DrawPlacedBlocks();
+        bool TryRemoveBlock(int i, int j);
+        void SwitchToPlayMode();
+        bool isPlayMode = false;
+        float structureOffsetY = 0.0f;  // Vertical offset for the entire structure
+        float structureSpeed = 300.0f;  // Movement speed in pixels per second
+        void DrawPlacedBumpersWithOffset();
+        void DrawPlacedBlocksWithOffset();
         int mouseYPos;
         int mouseXPos;
         // TODO(student): Class variables go here
@@ -75,6 +91,7 @@ namespace m1
         float frameWidth = gridRows * squareSize + padding;
 		std::vector<std::vector<Cell>> grid;
         std::vector<PlacedBumper> placedBumpers;
+		std::vector<PlacedBlock> placedBlocks;
         PanelSlot leftPanelSlots[4];
 		bool isDragging = false;
 		std::string draggedShape = "";

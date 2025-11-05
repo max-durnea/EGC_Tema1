@@ -54,50 +54,70 @@ void Tema1::Init()
     }
 }
 
-void Tema1::FrameStart()
-{
+void Tema1::FrameStart() {
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glm::ivec2 resolution = window->GetResolution();
     glViewport(0, 0, resolution.x, resolution.y);
 
-    // Draw grid
-    DrawGrid();
+    if (isPlayMode) {
+        // PLAY MODE: Clean scene, only draw the structure (movable)
+        DrawPlacedBumpersWithOffset();
+        DrawPlacedBlocksWithOffset();
+    }
+    else {
+        // EDIT MODE: Show everything
+        DrawGrid();
+        DrawPlacedBumpers();
+        DrawPlacedBlocks();
+        DrawLeftPanel();
 
-    // Draw placed bumpers on the grid
-    DrawPlacedBumpers();
-
-    // Draw left panel slots
-    DrawLeftPanel();
-
-    float slotWidth = offsetGridX / 2;
-    float slotHeight = window->GetResolution().y / 4.0f;
-
-    // Draw shapes in left panel slots (centered in each slot)
-    DrawMotor(slotWidth, slotHeight * 0.5f);                    // Slot 0 (bottom)
-    DrawCannon(slotWidth, slotHeight * 1.5f);                   // Slot 1
-    DrawBlock(slotWidth, slotHeight * 2.5f);                    // Slot 2
-    DrawBumper(slotWidth, slotHeight * 3.5f - squareSize / 2);    // Slot 3 (top)
+        float slotWidth = offsetGridX / 2;
+        float slotHeight = resolution.y / 4.0f;
+        DrawMotor(slotWidth, slotHeight * 0.5f);
+        DrawCannon(slotWidth, slotHeight * 1.5f);
+        DrawBlock(slotWidth, slotHeight * 2.5f);
+        DrawBumper(slotWidth, slotHeight * 3.5f - squareSize / 2);
+    }
 }
 
-void Tema1::Update(float deltaTimeSeconds)
-{
-    if (isDragging && draggedShape != "") {
-        float drawX = mouseXPos;
-        float drawY = window->GetResolution().y - mouseYPos;
 
-        if (draggedShape == "bumper") {
-            DrawBumper(mouseXPos, mouseYPos + squareSize / 2);
+void Tema1::Update(float deltaTimeSeconds) {
+    if (isPlayMode) {
+        // Move structure up and down in play mode
+        float gridHeight = gridRows * squareSize + padding;
+        float maxOffset = window->GetResolution().y - gridHeight;
+        float minOffset = 0;
+
+        if (window->KeyHold(GLFW_KEY_W) || window->KeyHold(GLFW_KEY_UP)) {
+            structureOffsetY += structureSpeed * deltaTimeSeconds;
+            if (structureOffsetY > maxOffset) {
+                structureOffsetY = maxOffset;
+            }
         }
-        else if (draggedShape == "block") {
-            DrawBlock(mouseXPos, mouseYPos);
+        if (window->KeyHold(GLFW_KEY_S) || window->KeyHold(GLFW_KEY_DOWN)) {
+            structureOffsetY -= structureSpeed * deltaTimeSeconds;
+            if (structureOffsetY < minOffset) {
+                structureOffsetY = minOffset;
+            }
         }
-        else if (draggedShape == "cannon") {
-            DrawCannon(mouseXPos, mouseYPos);
-        }
-        else if (draggedShape == "motor") {
-            DrawMotor(mouseXPos, mouseYPos);
+    }
+    else {
+        // Edit mode - dragging objects
+        if (isDragging && draggedShape != "") {
+            if (draggedShape == "bumper") {
+                DrawBumper(mouseXPos, mouseYPos + squareSize / 2);
+            }
+            else if (draggedShape == "block") {
+                DrawBlock(mouseXPos, mouseYPos);
+            }
+            else if (draggedShape == "cannon") {
+                DrawCannon(mouseXPos, mouseYPos);
+            }
+            else if (draggedShape == "motor") {
+                DrawMotor(mouseXPos, mouseYPos);
+            }
         }
     }
 }
@@ -113,6 +133,9 @@ void Tema1::OnInputUpdate(float deltaTime, int mods)
 
 void Tema1::OnKeyPress(int key, int mods)
 {
+    if (key == GLFW_KEY_P) {
+        SwitchToPlayMode();
+    }
 }
 
 void Tema1::OnKeyRelease(int key, int mods)
@@ -265,6 +288,10 @@ void Tema1::CreateCannon() {
 }
 
 void Tema1::CheckSquareClick(int mouseX, int mouseY, int button, int mods) {
+    if (isPlayMode) {
+        // Don't allow placement in play mode
+        return;
+    }
     int mouseY_gl = window->GetResolution().y - mouseY;
     printf("Mouse click at: %d %d\n", mouseX, mouseY_gl);
 
@@ -322,6 +349,17 @@ void Tema1::CheckSquareClick(int mouseX, int mouseY, int button, int mods) {
                     // Try to place a bumper at this position
                     // Bumper needs: 3 squares wide (i-1, i, i+1) and 2 squares tall (j, j+1)
                     // Center column is i, so we need i-1 and i+1 to exist
+                                        // If user right-clicks (button == 2), try to remove a placed block
+                    if (button == 2) {
+                        if (TryRemoveBlock(i, j)) {
+                            printf("Removed block at [%d, %d]\n", i, j);
+                        } else if(TryRemoveBumper(i, j)) {
+                            printf("Removed bumper at [%d, %d]\n", i, j);
+						}
+                        else {
+                            printf("No block to remove at [%d, %d]\n", i, j);
+                        }
+                    }
                     if (isDragging)
                     {
                         if (draggedShape == "bumper") {
@@ -335,7 +373,17 @@ void Tema1::CheckSquareClick(int mouseX, int mouseY, int button, int mods) {
                             }
                             squareFound = true;
                         }
-                        
+                        if (draggedShape == "block") {
+                            if (TryPlaceBlock(i, j)) {
+                                printf("Block placed at grid position: [%d, %d]\n", i, j);
+                                isDragging = false;
+                                draggedShape = "";
+                            }
+                            else {
+                                printf("Cannot place block at [%d, %d] - not enough space\n", i, j);
+                            }
+                            squareFound = true;
+                        }
                     }
                     
                 }
@@ -370,15 +418,19 @@ bool Tema1::TryPlaceBumper(int centerCol, int row) {
     // Mark squares as occupied
     grid[leftCol][row].highlighted = true;
     grid[leftCol][row].color = glm::vec3(0.5f, 0.5f, 0.5f);
+	grid[leftCol][row].content = "bumper";
 
     grid[centerCol][row].highlighted = true;
     grid[centerCol][row].color = glm::vec3(0.5f, 0.5f, 0.5f);
+	grid[centerCol][row].content = "bumper";
 
     grid[rightCol][row].highlighted = true;
     grid[rightCol][row].color = glm::vec3(0.5f, 0.5f, 0.5f);
+	grid[rightCol][row].content = "bumper";
 
     grid[centerCol][topRow-1].highlighted = true;
     grid[centerCol][topRow-1].color = glm::vec3(0.5f, 0.5f, 0.5f);
+	grid[centerCol][topRow - 1].content = "bumper";
 
     // Store the bumper
     PlacedBumper bumper;
@@ -388,6 +440,103 @@ bool Tema1::TryPlaceBumper(int centerCol, int row) {
     placedBumpers.push_back(bumper);
 
     return true;
+}
+// new: remove placed bumper and clear its occupied cells
+bool Tema1::TryRemoveBumper(int centerCol, int row) {
+    // bounds check
+    if (centerCol < 0 || centerCol >= gridCols || row < 0 || row >= gridRows) {
+        return false;
+    }
+
+    // find placed bumper that matches centerCol,row
+    for (auto it = placedBumpers.begin(); it != placedBumpers.end(); ++it) {
+        if (it->gridX == centerCol && it->gridY == row) {
+            // clear grid cells in the 3x2 area: cols centerCol-1..centerCol+1, rows row..row+1
+            /*for (int dx = -1; dx <= 1; ++dx) {
+                for (int dy = 0; dy <= 1; ++dy) {
+                    int gx = centerCol + dx;
+                    int gy = row + dy;
+                    if (gx >= 0 && gx < gridCols && gy >= 0 && gy < gridRows) {
+                        if (grid[gx][gy].content == "bumper") {
+                            grid[gx][gy].content = "";
+                            grid[gx][gy].highlighted = false;
+                            grid[gx][gy].color = glm::vec3(1, 1, 1);
+                        }
+                    }
+                }
+            }*/
+			grid[centerCol - 1][row].content = "";
+			grid[centerCol - 1][row].highlighted = false;
+			grid[centerCol - 1][row].color = glm::vec3(1, 1, 1);
+
+			grid[centerCol][row].content = "";
+			grid[centerCol][row].highlighted = false;
+			grid[centerCol][row].color = glm::vec3(1, 1, 1);
+
+			grid[centerCol + 1][row].content = "";
+			grid[centerCol + 1][row].highlighted = false;
+			grid[centerCol + 1][row].color = glm::vec3(1, 1, 1);
+
+			grid[centerCol][row - 1].content = "";
+			grid[centerCol][row - 1].highlighted = false;
+			grid[centerCol][row - 1].color = glm::vec3(1, 1, 1);
+            // erase placed bumper record
+            placedBumpers.erase(it);
+            return true;
+        }
+    }
+
+    return false;
+}
+bool Tema1::TryPlaceBlock(int centerCol,int row) {
+    if(grid[centerCol][row].highlighted==false)
+    {
+        grid[centerCol][row].highlighted = true;
+        grid[centerCol][row].color = glm::vec3(0.5f, 0.5f, 0.5f);
+		grid[centerCol][row].content = "block";
+    }
+    else {
+        return false;
+    }
+	PlacedBlock block;
+	block.gridX = centerCol;
+	block.gridY = row;
+	block.color = glm::vec3(1, 0, 1);
+	placedBlocks.push_back(block);
+    return true;
+
+}
+
+bool Tema1::TryRemoveBlock(int i, int j) {
+    // bounds check
+    if (i < 0 || i >= gridCols || j < 0 || j >= gridRows) {
+        return false;
+    }
+
+    // Find a placed block located at the exact grid cell (i,j)
+    for (auto it = placedBlocks.begin(); it != placedBlocks.end(); ++it) {
+        if (it->gridX == i && it->gridY == j) {
+            // remove from placedBlocks
+            placedBlocks.erase(it);
+
+            // clear the grid cell state
+            grid[i][j].content = "";
+            grid[i][j].highlighted = false;
+            grid[i][j].color = glm::vec3(1, 1, 1);
+
+            // If your TryPlaceBlock marked additional cells (for larger shapes),
+            // you should also clear those here. Example for a 1xN shape:
+            // for (int yy = j; yy < j + shapeHeightInSquares && yy < gridRows; ++yy) {
+            //     grid[i][yy].content = "";
+            //     grid[i][yy].highlighted = false;
+            //     grid[i][yy].color = glm::vec3(1,1,1);
+            // }
+
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void Tema1::DrawPlacedBumpers() {
@@ -405,7 +554,16 @@ void Tema1::DrawPlacedBumpers() {
         RenderMesh2D(meshes["bumper_square"], modelMatrix, glm::vec3(0, 0, 1));
     }
 }
-
+void Tema1::DrawPlacedBlocks() {
+    for(const auto& block : placedBlocks) {
+        float worldX = block.gridX * squareSize + padding + offsetGridX + squareSize / 2.0f;
+        float worldY = block.gridY * squareSize + padding + offsetGridY + squareSize / 2.0f;;
+        modelMatrix = glm::mat3(1);
+        modelMatrix *= transform2D::Translate(worldX, worldY);
+        modelMatrix *= transform2D::Scale(squareSize, squareSize);
+        RenderMesh2D(meshes["block"], modelMatrix, block.color);
+	}
+}
 
 
 void Tema1::CreateBumperSquare() {
@@ -579,4 +737,47 @@ void Tema1::CreateMesh(const char* name, const std::vector<VertexFormat>& vertic
 
     meshes[name] = new Mesh(name);
     meshes[name]->InitFromBuffer(VAO, static_cast<unsigned int>(indices.size()));
+}
+
+
+void Tema1::SwitchToPlayMode() {
+    isPlayMode = !isPlayMode;
+    structureOffsetY = 0.0f;  // Reset position when switching modes
+
+    if (isPlayMode) {
+        printf("=== PLAY MODE ===\n");
+        printf("Use W/S or UP/DOWN arrows to move structure\n");
+        printf("Press P to return to edit mode\n");
+    }
+    else {
+        printf("=== EDIT MODE ===\n");
+    }
+}
+
+
+void Tema1::DrawPlacedBumpersWithOffset() {
+    for (const auto& bumper : placedBumpers) {
+        // Calculate world position from grid position
+        float worldX = bumper.gridX * squareSize + padding + offsetGridX + squareSize / 2.0f;
+        float worldY = bumper.gridY * squareSize + padding + offsetGridY + structureOffsetY;
+
+        modelMatrix = glm::mat3(1);
+        modelMatrix *= transform2D::Translate(worldX, worldY);
+        modelMatrix *= transform2D::Scale(squareSize, squareSize);
+
+        RenderMesh2D(meshes["bumper_semi"], modelMatrix, bumper.color);
+        RenderMesh2D(meshes["bumper_square"], modelMatrix, glm::vec3(0, 0, 1));
+    }
+}
+
+void Tema1::DrawPlacedBlocksWithOffset() {
+    for (const auto& block : placedBlocks) {
+        float worldX = block.gridX * squareSize + padding + offsetGridX + squareSize / 2.0f;
+        float worldY = block.gridY * squareSize + padding + offsetGridY + squareSize / 2.0f + structureOffsetY;
+
+        modelMatrix = glm::mat3(1);
+        modelMatrix *= transform2D::Translate(worldX, worldY);
+        modelMatrix *= transform2D::Scale(squareSize, squareSize);
+        RenderMesh2D(meshes["block"], modelMatrix, block.color);
+    }
 }
