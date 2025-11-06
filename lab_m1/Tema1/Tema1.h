@@ -7,11 +7,12 @@
 namespace m1
 {
     struct Cell {
-        glm::vec2 pos;  
+        glm::vec2 pos;
         float size;
-        bool highlighted; 
+        bool highlighted;
+        bool pivot=false;
         glm::vec3 color = glm::vec3(1, 1, 1);
-		std::string content = ""; // "bumper", "block"
+        std::string content = ""; // "bumper", "block"
     };
     // Add this struct definition (if you don't already have it)
     struct PanelSlot {
@@ -27,6 +28,9 @@ namespace m1
         int gridX;
         int gridY;
         glm::vec3 color;
+    };
+    struct Slot {
+        bool draw;
 	};
     class Tema1 : public gfxc::SimpleScene
     {
@@ -54,7 +58,7 @@ namespace m1
         void CheckSquareClick(int mouseX, int mouseY, int button, int mods);
         void CreateBumperSemicircle();
         void CreateBumperSquare();
-		void DrawBumper(int x, int y);
+        void DrawBumper(int x, int y);
         void DrawLeftPanel();
         void CreateSquareAndFrame();
         bool TryPlaceBumper(int centerCol, int row);
@@ -77,36 +81,49 @@ namespace m1
         int mouseXPos;
         // TODO(student): Class variables go here
         glm::mat3 modelMatrix;
-		int squareSize = 25;
-		int gridCols = 34;
-		int gridRows = 18;
-		int offsetGridX = 350;
-		int offsetGridY = 50;
-		//int frameThickness = 5;
+        int squareSize = 50;
+        int gridCols = 17;
+        int gridRows = 9;
+        int offsetGridX = 350;
+        int offsetGridY = 50;
+        //int frameThickness = 5;
         int frameSize = squareSize;
-		int padding = 5;
+        int padding = 5;
         float frameHeight = gridCols * squareSize + padding;
         float frameWidth = gridRows * squareSize + padding;
-		std::vector<std::vector<Cell>> grid;
+        std::vector<std::vector<Cell>> grid;
         std::vector<PlacedBumper> placedBumpers;
-		std::vector<PlacedBlock> placedBlocks;
+        std::vector<PlacedBlock> placedBlocks;
         PanelSlot leftPanelSlots[4];
-		bool isDragging = false;
-		std::string draggedShape = "";
+        bool isDragging = false;
+        std::string draggedShape = "";
         //StartPlaing
-		int minX, maxX, minY, maxY;
+        int minX, maxX, minY, maxY;
         std::vector<std::vector<Cell>> miniGrid;
         void FindBoundaries();
         void CopyRectangle();
         void DrawMiniGrid();
-        void DrawBlockPlayer(int x, int y,glm::vec3 color);
+        void DrawBlockPlayer(int x, int y, glm::vec3 color);
         void DrawBumperPlayer(int x, int y, glm::vec3 color1, glm::vec3 color2);
         int width, height;
         float structureOffsetX = 0.0f;
         float structureOffsetY = 0.0f;
+        //upper pannel
         void CreateStartButton();
-
-
+        void DrawStartButton(int x, int y);
+        float paddingPanel = 10.0f;
+        float buttonSize = squareSize+squareSize/4;
+        void DrawSlot(int x, int y, glm::vec3 color);
+        void CreateSlot();
+        int numSlots = 10;
+        std::vector<Slot> slots;
+        int availableSlots;
+        // conditions
+        bool CheckPlacementRules();
+		glm::vec3 startButtonColor = glm::vec3(0.2f, 0.8f, 0.2f);
+        bool canPlay = false;
+        bool CheckConnectivity();
+        void DebugPrintGrid();
     };
 };   // namespace m1
 
