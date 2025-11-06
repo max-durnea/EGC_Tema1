@@ -1,4 +1,4 @@
-#include "lab_m1/Tema1/Tema1.h"
+﻿#include "lab_m1/Tema1/Tema1.h"
 #include <vector>
 #include <iostream>
 
@@ -60,11 +60,8 @@ void Tema1::FrameStart() {
 
     glm::ivec2 resolution = window->GetResolution();
     glViewport(0, 0, resolution.x, resolution.y);
-
     if (isPlayMode) {
-        // PLAY MODE: Clean scene, only draw the structure (movable)
-        DrawPlacedBumpersWithOffset();
-        DrawPlacedBlocksWithOffset();
+        DrawMiniGrid();
     }
     else {
         // EDIT MODE: Show everything
@@ -80,28 +77,13 @@ void Tema1::FrameStart() {
         DrawBlock(slotWidth, slotHeight * 2.5f);
         DrawBumper(slotWidth, slotHeight * 3.5f - squareSize / 2);
     }
+       
 }
 
 
 void Tema1::Update(float deltaTimeSeconds) {
     if (isPlayMode) {
-        // Move structure up and down in play mode
-        float gridHeight = gridRows * squareSize + padding;
-        float maxOffset = window->GetResolution().y - gridHeight;
-        float minOffset = 0;
-
-        if (window->KeyHold(GLFW_KEY_W) || window->KeyHold(GLFW_KEY_UP)) {
-            structureOffsetY += structureSpeed * deltaTimeSeconds;
-            if (structureOffsetY > maxOffset) {
-                structureOffsetY = maxOffset;
-            }
-        }
-        if (window->KeyHold(GLFW_KEY_S) || window->KeyHold(GLFW_KEY_DOWN)) {
-            structureOffsetY -= structureSpeed * deltaTimeSeconds;
-            if (structureOffsetY < minOffset) {
-                structureOffsetY = minOffset;
-            }
-        }
+        return;
     }
     else {
         // Edit mode - dragging objects
@@ -129,6 +111,12 @@ void Tema1::FrameEnd()
 
 void Tema1::OnInputUpdate(float deltaTime, int mods)
 {
+	float speed = 300.0f; // pixels per second
+    if (isPlayMode) {
+        if (window->KeyHold(GLFW_KEY_LEFT))  structureOffsetX -= deltaTime * speed;
+        if (window->KeyHold(GLFW_KEY_RIGHT)) structureOffsetX += deltaTime * speed;
+    }
+
 }
 
 void Tema1::OnKeyPress(int key, int mods)
@@ -217,7 +205,11 @@ void Tema1::CreateBumperSemicircle() {
 
 
 
+void Tema1::CreateStartButton() {
+	float size = 1.0f;
+    std::vector<VertexFormat>
 
+}
 
 void Tema1::CreateBlock() {
     float size = 1.0f;
@@ -543,8 +535,8 @@ void Tema1::DrawPlacedBumpers() {
     for (const auto& bumper : placedBumpers) {
         // Calculate world position from grid position
         // The bumper's center is at the center column, bottom row
-        float worldX = bumper.gridX * squareSize + padding + offsetGridX + squareSize / 2.0f;
-        float worldY = bumper.gridY * squareSize + padding + offsetGridY;
+        float worldX = bumper.gridX * squareSize + padding + offsetGridX + squareSize / 2.0f - padding / 2;
+        float worldY = bumper.gridY * squareSize + padding + offsetGridY -padding/2;
 
         modelMatrix = glm::mat3(1);
         modelMatrix *= transform2D::Translate(worldX, worldY);
@@ -556,8 +548,8 @@ void Tema1::DrawPlacedBumpers() {
 }
 void Tema1::DrawPlacedBlocks() {
     for(const auto& block : placedBlocks) {
-        float worldX = block.gridX * squareSize + padding + offsetGridX + squareSize / 2.0f;
-        float worldY = block.gridY * squareSize + padding + offsetGridY + squareSize / 2.0f;;
+        float worldX = block.gridX * squareSize + padding + offsetGridX + squareSize / 2.0f-padding/2;
+        float worldY = block.gridY * squareSize + padding + offsetGridY + squareSize / 2.0f-padding/2;;
         modelMatrix = glm::mat3(1);
         modelMatrix *= transform2D::Translate(worldX, worldY);
         modelMatrix *= transform2D::Scale(squareSize, squareSize);
@@ -739,7 +731,22 @@ void Tema1::CreateMesh(const char* name, const std::vector<VertexFormat>& vertic
     meshes[name]->InitFromBuffer(VAO, static_cast<unsigned int>(indices.size()));
 }
 
+void Tema1::DrawBumperPlayer(int x, int y,glm::vec3 color1,glm::vec3 color2) {
+    modelMatrix = glm::mat3(1);
+    modelMatrix *= transform2D::Translate(x, y);
+    // Scale by squareSize to convert from grid units to pixels
+    modelMatrix *= transform2D::Scale(squareSize, squareSize);
 
+    RenderMesh2D(meshes["bumper_semi"], modelMatrix, color1);
+    RenderMesh2D(meshes["bumper_square"], modelMatrix, color2);
+}
+void Tema1::DrawBlockPlayer(int x, int y, glm::vec3 color) {
+    modelMatrix = glm::mat3(1);
+    modelMatrix *= transform2D::Translate(x, y);
+    modelMatrix *= transform2D::Scale(squareSize, squareSize);
+    RenderMesh2D(meshes["block"], modelMatrix, color);
+}
+//Playing with the structure
 void Tema1::SwitchToPlayMode() {
     isPlayMode = !isPlayMode;
     structureOffsetY = 0.0f;  // Reset position when switching modes
@@ -748,36 +755,91 @@ void Tema1::SwitchToPlayMode() {
         printf("=== PLAY MODE ===\n");
         printf("Use W/S or UP/DOWN arrows to move structure\n");
         printf("Press P to return to edit mode\n");
+        FindBoundaries();
+		CopyRectangle();
     }
     else {
         printf("=== EDIT MODE ===\n");
     }
 }
-
-
-void Tema1::DrawPlacedBumpersWithOffset() {
-    for (const auto& bumper : placedBumpers) {
-        // Calculate world position from grid position
-        float worldX = bumper.gridX * squareSize + padding + offsetGridX + squareSize / 2.0f;
-        float worldY = bumper.gridY * squareSize + padding + offsetGridY + structureOffsetY;
-
-        modelMatrix = glm::mat3(1);
-        modelMatrix *= transform2D::Translate(worldX, worldY);
-        modelMatrix *= transform2D::Scale(squareSize, squareSize);
-
-        RenderMesh2D(meshes["bumper_semi"], modelMatrix, bumper.color);
-        RenderMesh2D(meshes["bumper_square"], modelMatrix, glm::vec3(0, 0, 1));
-    }
+void Tema1::FindBoundaries() {
+	minX = gridCols+1, maxX = -1, minY = gridRows+1, maxY = -1;
+    for (int i = 0; i < gridCols; i++) {
+        for (int j = 0; j < gridRows; j++) {
+            if (grid[i][j].highlighted) {
+                if (i < minX) minX = i;
+                if (i > maxX) maxX = i;
+                if (j < minY) minY = j;
+                if (j > maxY) maxY = j;
+            }
+        }
+	}
+	printf("Boundaries - minX: %d, maxX: %d, minY: %d, maxY: %d\n", minX, maxX, minY, maxY);
 }
 
-void Tema1::DrawPlacedBlocksWithOffset() {
-    for (const auto& block : placedBlocks) {
-        float worldX = block.gridX * squareSize + padding + offsetGridX + squareSize / 2.0f;
-        float worldY = block.gridY * squareSize + padding + offsetGridY + squareSize / 2.0f + structureOffsetY;
+void Tema1::CopyRectangle() {
+    // if nothing selected, do nothing
+    if (maxX < minX || maxY < minY) {
+        printf("No highlighted cells. miniGrid is empty.\n");
+        miniGrid.clear();
+        return;
+    }
+    width = maxX - minX + 1;
+    height = maxY - minY + 1;
+    //alloc miniGrid
+    miniGrid.clear();
+    miniGrid.resize(width);            
+    for (int c = 0; c < width; c++) {
+        miniGrid[c].resize(height);    
+    }
+    for (int i = minX; i <= maxX; i++) {
+        for (int j = minY; j <= maxY; j++) {
 
-        modelMatrix = glm::mat3(1);
-        modelMatrix *= transform2D::Translate(worldX, worldY);
-        modelMatrix *= transform2D::Scale(squareSize, squareSize);
-        RenderMesh2D(meshes["block"], modelMatrix, block.color);
+            int localC = i - minX;      // same
+            int localR = j - minY;      // bottom row is 0
+            miniGrid[localC][localR] = grid[i][j];
+
+        }
+    }
+
+
+}
+
+void Tema1::DrawMiniGrid() {
+    float gridPixelWidth = width * squareSize;
+
+    if (structureOffsetX + gridPixelWidth > window->GetResolution().x)
+        structureOffsetX = window->GetResolution().x - gridPixelWidth;
+	if (structureOffsetX < 0) structureOffsetX = 0;
+    float startX = structureOffsetX;
+    float startY = structureOffsetY;
+
+
+    for (int col = 0; col < width; col++) {
+        for (int row = 0; row < height; row++) {
+            if (miniGrid[col][row].content == "bumper") {
+                // make sure neighbors exist
+                if (col > 0 && col < width - 1 && row > 0) {
+                    if (miniGrid[col - 1][row].content == "bumper" &&
+                        miniGrid[col + 1][row].content == "bumper" &&
+                        miniGrid[col][row - 1].content == "bumper") {
+
+                        float drawX = startX + col * squareSize + squareSize / 2;
+                        float drawY = startY + row * squareSize;
+                        DrawBumperPlayer(drawX, drawY, glm::vec3(1, 1, 0), glm::vec3(0, 0, 1));
+                    }
+                }
+            }
+            else if (miniGrid[col][row].highlighted) {
+                float drawX = startX + col * squareSize + squareSize / 2;
+                float drawY = startY + row * squareSize + squareSize / 2;
+                DrawBlockPlayer(drawX, drawY, glm::vec3(1, 0, 1));
+            }
+            else {
+                float drawX = startX + col * squareSize + squareSize / 2;
+                float drawY = startY + row * squareSize + squareSize / 2;
+                DrawBlockPlayer(drawX, drawY, glm::vec3(1, 1, 1));
+            }   
+        }
     }
 }

@@ -71,17 +71,15 @@ namespace m1
         bool TryRemoveBlock(int i, int j);
         void SwitchToPlayMode();
         bool isPlayMode = false;
-        float structureOffsetY = 0.0f;  // Vertical offset for the entire structure
-        float structureSpeed = 300.0f;  // Movement speed in pixels per second
-        void DrawPlacedBumpersWithOffset();
-        void DrawPlacedBlocksWithOffset();
+        //float structureOffsetY = 0.0f;  // Vertical offset for the entire structure
+        //float structureSpeed = 300.0f;  // Movement speed in pixels per second
         int mouseYPos;
         int mouseXPos;
         // TODO(student): Class variables go here
         glm::mat3 modelMatrix;
-		int squareSize = 50;
-		int gridCols = 17;
-		int gridRows = 9;
+		int squareSize = 25;
+		int gridCols = 34;
+		int gridRows = 18;
 		int offsetGridX = 350;
 		int offsetGridY = 50;
 		//int frameThickness = 5;
@@ -95,6 +93,19 @@ namespace m1
         PanelSlot leftPanelSlots[4];
 		bool isDragging = false;
 		std::string draggedShape = "";
+        //StartPlaing
+		int minX, maxX, minY, maxY;
+        std::vector<std::vector<Cell>> miniGrid;
+        void FindBoundaries();
+        void CopyRectangle();
+        void DrawMiniGrid();
+        void DrawBlockPlayer(int x, int y,glm::vec3 color);
+        void DrawBumperPlayer(int x, int y, glm::vec3 color1, glm::vec3 color2);
+        int width, height;
+        float structureOffsetX = 0.0f;
+        float structureOffsetY = 0.0f;
+        void CreateStartButton();
+
 
     };
 };   // namespace m1
