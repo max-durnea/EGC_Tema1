@@ -3,9 +3,16 @@
 #include "components/simple_scene.h"
 #include <vector> 
 #include "utils/glm_utils.h"
-
+#include <queue>
 namespace m1
 {
+    struct BreakoutBlock {
+        glm::vec2 pos;      // top-left corner position
+        float width;
+        float height;
+        int hits;           // 2 = full health, 1 = damaged, 0 = destroyed
+        glm::vec3 color;    // current color
+    };
     struct Cell {
         glm::vec2 pos;
         float size;
@@ -32,6 +39,12 @@ namespace m1
     struct Slot {
         bool draw;
 	};
+
+    struct Ball {
+        glm::vec2 pos;   // current position (center of ball)
+        glm::vec2 vel;   // velocity (units per second)
+        float radius;    // radius in world units
+    };
     class Tema1 : public gfxc::SimpleScene
     {
     public:
@@ -108,6 +121,8 @@ namespace m1
         int width, height;
         float structureOffsetX = 0.0f;
         float structureOffsetY = 0.0f;
+        float prevStructureOffsetX = 0.0f; // initialize at start
+        float paddleVelX;
         //upper pannel
         void CreateStartButton();
         void DrawStartButton(int x, int y);
@@ -120,10 +135,23 @@ namespace m1
         int availableSlots;
         // conditions
         bool CheckPlacementRules();
-		glm::vec3 startButtonColor = glm::vec3(0.2f, 0.8f, 0.2f);
+		glm::vec3 startButtonColor = glm::vec3(0, 1, 0);
         bool canPlay = false;
         bool CheckConnectivity();
         void DebugPrintGrid();
+        // ball
+        void CreateBallMesh(const char* name, float radius, int segments);
+        void UpdateBall(Ball& ball, float dt, float windowWidth, float windowHeight);
+        void CheckBallPaddleCollision(Ball& ball, float paddleVelX);
+		std::vector<Ball> balls;
+        // breakout blocks
+        std::vector<BreakoutBlock> breakoutBlocks;
+        void CreateBreakoutGrid();
+        void DrawBreakoutBlocks();
+        void CheckBallBlockCollision(Ball& ball);
+        // lives and score
+        int score = 0;
+        int lives = 3;
     };
 };   // namespace m1
 

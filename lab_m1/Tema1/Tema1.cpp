@@ -23,7 +23,13 @@ void Tema1::Init()
     camera->SetRotation(glm::vec3(0, 0, 0));
     camera->Update();
     GetCameraInput()->SetActive(false);
-
+    Ball ball;
+    ball.pos = { 300.0f, 200.0f };
+    ball.vel = { 800.0f, 800.0f }; // speed & direction
+    ball.radius = 10.0f;
+	balls.push_back(ball);
+    CreateBreakoutGrid();
+	CreateBallMesh("ball", ball.radius, 32);
     CreateBumperSemicircle();
     CreateBumperSquare();
     CreateBlock();
@@ -62,6 +68,9 @@ void Tema1::Init()
 }
 
 void Tema1::FrameStart() {
+    if (availableSlots == numSlots) {
+        startButtonColor=glm::vec3(1,0,0);
+	}
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glm::ivec2 res = window->GetResolution();
@@ -110,6 +119,14 @@ void Tema1::FrameStart() {
 
 void Tema1::Update(float deltaTimeSeconds) {
     if (isPlayMode) {
+		// update ball position
+        paddleVelX = (structureOffsetX - prevStructureOffsetX) / deltaTimeSeconds;
+        prevStructureOffsetX = structureOffsetX;
+        for (auto& ball : balls) {
+			auto window_res = window->GetResolution();
+			UpdateBall(ball, deltaTimeSeconds, window_res.x, window_res.y);
+		}
+        DrawBreakoutBlocks();
         return;
     }
     else {
@@ -165,6 +182,24 @@ void Tema1::OnMouseMove(int mouseX, int mouseY, int deltaX, int deltaY)
 
 void Tema1::OnMouseBtnPress(int mouseX, int mouseY, int button, int mods)
 {
+    int mouseY_gl = window->GetResolution().y - mouseY;
+
+    // === CLICK START BUTTON ===
+    float startButtonX = window->GetResolution().x - buttonSize - paddingPanel-buttonSize/2;
+    float startButtonY = window->GetResolution().y - buttonSize - paddingPanel-buttonSize/2;
+	printf("Mouse click at: %d %d\n", mouseX, mouseY_gl);
+	printf("Start button at: %f %f\n", startButtonX, startButtonY);
+    if (mouseX >= startButtonX && mouseX <= startButtonX + buttonSize &&
+        mouseY_gl >= startButtonY && mouseY_gl <= startButtonY + buttonSize)
+    {
+        if (canPlay && !isPlayMode)
+        {
+            SwitchToPlayMode();
+            return;
+        }
+    }
+
+    // existing click logic
     CheckSquareClick(mouseX, mouseY, button, mods);
 }
 
@@ -189,14 +224,34 @@ void Tema1::OnWindowResize(int width, int height)
     buttonSize = squareSize + squareSize / 4;
     float gridWidth = gridCols * squareSize + padding;
     float gridHeight = gridRows * squareSize + padding;
-
     offsetGridX = width - gridWidth - padding;
     offsetGridY = padding;
-    /*CreateBumperSemicircle();
-    CreateBumperSquare();
-    CreateBlock();
-    CreateCannon();
-    CreateMotor();*/
+
+    // Rescale existing breakout blocks instead of recreating
+    if (isPlayMode && !breakoutBlocks.empty()) {
+        int rows = 8;
+        int cols = 12;
+        float spacing = 8.0f;
+
+        float totalSpacing = spacing * (cols + 1);
+        float blockWidth = (width - totalSpacing) / cols;
+        float blockHeight = 40.0f;
+        float startX = spacing;
+        float startY = height - spacing - blockHeight;
+
+        int idx = 0;
+        for (int row = 0; row < rows; row++) {
+            for (int col = 0; col < cols; col++) {
+                if (idx < breakoutBlocks.size()) {
+                    breakoutBlocks[idx].pos.x = startX + col * (blockWidth + spacing);
+                    breakoutBlocks[idx].pos.y = startY - row * (blockHeight + spacing);
+                    breakoutBlocks[idx].width = blockWidth;
+                    breakoutBlocks[idx].height = blockHeight;
+                    idx++;
+                }
+            }
+        }
+    }
 }
 
 void Tema1::CreateBumperSemicircle() {
@@ -273,6 +328,30 @@ void Tema1::CreateBlock() {
     };
     std::vector<unsigned int> indices{ 0,1,2, 2,1,3 };
     CreateMesh("block", vertices, indices);
+}
+void Tema1::CreateBallMesh(const char* name, float radius, int segments = 32) {
+    std::vector<VertexFormat> vertices;
+    std::vector<unsigned int> indices;
+
+    // center vertex
+    vertices.push_back(VertexFormat(glm::vec3(0, 0, 0)));
+
+    // circle vertices
+    for (int i = 0; i <= segments; i++) {
+        float angle = 2.0f * M_PI * i / segments;
+        float x = radius * cos(angle);
+        float y = radius * sin(angle);
+        vertices.push_back(VertexFormat(glm::vec3(x, y, 0)));
+    }
+
+    // create triangles
+    for (int i = 1; i <= segments; i++) {
+        indices.push_back(0);       // center
+        indices.push_back(i);       // current vertex
+        indices.push_back(i + 1);   // next vertex
+    }
+
+    CreateMesh(name, vertices, indices);
 }
 
 void Tema1::CreateMotor() {
@@ -999,42 +1078,309 @@ void Tema1::DebugPrintGrid()
 
 
 bool Tema1::CheckConnectivity() {
-    /*int placedBlocksCount = 0;
+    std::vector<std::vector<bool>> visited(gridCols, std::vector<bool>(gridRows, false));
 
-    // count blocks
-    for (int i = 0; i < gridCols; i++) {
-        for (int j = 0; j < gridRows; j++) {
-            if (grid[i][j].content != "") placedBlocksCount++;
+    // 1) Find a starting cell that has content
+    int startX = -1, startY = -1;
+    for (int x = 0; x < gridCols; x++) {
+        for (int y = 0; y < gridRows; y++) {
+            if (grid[x][y].content != "") {
+                startX = x;
+                startY = y;
+                break;
+            }
+        }
+        if (startX != -1) break;
+    }
+
+    // no blocks placed = trivially connected
+    if (startX == -1) return true;
+
+    // 2) BFS from the first found cell
+    std::queue<std::pair<int, int>> q;
+    q.push({ startX, startY });
+    visited[startX][startY] = true;
+
+    int dx[8] = { 1, -1, 0, 0,  1,  1, -1, -1 };
+    int dy[8] = { 0, 0, 1, -1,  1, -1,  1, -1 };
+
+    while (!q.empty()) {
+        std::pair<int, int> front = q.front();
+        int x = front.first;
+        int y = front.second;
+        q.pop();
+
+        for (int i = 0; i < 8; i++) {
+            int nx = x + dx[i];
+            int ny = y + dy[i];
+
+            // bounds
+            if (nx < 0 || nx >= gridCols|| ny < 0 || ny >= gridRows)
+                continue;
+
+            // must have content to be part of structure
+            if (grid[nx][ny].content == "")
+                continue;
+
+            if (!visited[nx][ny]) {
+                visited[nx][ny] = true;
+                q.push({ nx, ny });
+            }
         }
     }
 
-    if (placedBlocksCount <= 1) return true; // only one block, trivially connected
-
-    for (int i = 0; i < gridCols; i++) {
-        for (int j = 0; j < gridRows; j++) {
-            if (grid[i][j].content != "") {
-                bool hasNeighbor = false;
-                int dx[8] = { -1, 1, 0, 0,-1,-1,1,1 };
-                int dy[8] = { 0, 0, -1, 1,-1,1,-1,1 };
-                for (int k = 0; k < 8; k++) {
-                    int ni = i + dx[k];
-                    int nj = j + dy[k];
-                    if (ni >= 0 && ni < gridCols && nj >= 0 && nj < gridRows) {
-                        if (grid[ni][nj].content != "") {
-                            hasNeighbor = true;
-							printf("Block at [%d, %d] has neighbor at [%d, %d]\n", i, j, ni, nj);
-                            break;
-                        }
-                    }
-                }
-                if (!hasNeighbor) {
-                    printf("Block at [%d, %d] doesn't have neighbors\n", i, j);
-                    return false; // disconnected block found
-                }
-                    
+    // 3) Check if any content cell was not visited
+    for (int x = 0; x < gridCols; x++) {
+        for (int y = 0; y < gridRows; y++) {
+            if (grid[x][y].content != "" && !visited[x][y]) {
+                return false; // disconnected
             }
         }
-    }*/
+    }
 
-    return true;
+    return true; // all connected
+}
+
+// ball
+
+void Tema1::UpdateBall(Ball& ball, float dt, float windowWidth, float windowHeight)
+{
+    // Move ball
+    ball.pos += ball.vel * dt;
+
+    // Check paddle collision
+    CheckBallPaddleCollision(ball, paddleVelX);
+    CheckBallBlockCollision(ball); // ADD THIS LINE
+    // Wall collisions
+    if (ball.pos.x - ball.radius < 0.0f) {
+        ball.pos.x = ball.radius;
+        ball.vel.x = -ball.vel.x;
+    }
+    if (ball.pos.x + ball.radius > windowWidth) {
+        ball.pos.x = windowWidth - ball.radius;
+        ball.vel.x = -ball.vel.x;
+    }
+    if (ball.pos.y + ball.radius > windowHeight) {
+        ball.pos.y = windowHeight - ball.radius;
+        ball.vel.y = -ball.vel.y;
+    }
+    if (ball.pos.y - ball.radius < 0.0f) {
+        lives--;
+        if (lives <= 0) {
+            exit(0); // game over
+        }
+        else {
+            // reset ball to center
+            ball.pos = glm::vec2(windowWidth / 2.0f, windowHeight / 2.0f);
+            ball.vel = glm::vec2(0.0f, -400.0f);
+        }
+    }
+
+    // Clamp velocity
+    float speed = glm::length(ball.vel);
+    float maxSpeed = 1200.0f;
+    if (speed > maxSpeed) {
+        ball.vel = (ball.vel / speed) * maxSpeed;
+    }
+
+    // Render
+    modelMatrix = glm::mat3(1);
+    modelMatrix *= transform2D::Translate(ball.pos.x, ball.pos.y);
+    RenderMesh2D(meshes["ball"], modelMatrix, glm::vec3(1, 0, 0));
+}
+
+void Tema1::CheckBallPaddleCollision(Ball& ball, float paddleVelX) {
+    if (width == 0 || height == 0) return;
+
+    float paddleLeft = structureOffsetX;
+    float paddleRight = structureOffsetX + width * squareSize;
+    float paddleBottom = structureOffsetY;
+    float paddleTop = structureOffsetY + height * squareSize;
+
+    // Quick check - if ball is completely outside paddle bounds
+    if (ball.pos.x + ball.radius < paddleLeft ||
+        ball.pos.x - ball.radius > paddleRight ||
+        ball.pos.y + ball.radius < paddleBottom ||
+        ball.pos.y - ball.radius > paddleTop) {
+        return;
+    }
+
+    // Check all cells that the ball overlaps
+    int colMin = (int)((ball.pos.x - ball.radius - structureOffsetX) / squareSize);
+    int colMax = (int)((ball.pos.x + ball.radius - structureOffsetX) / squareSize);
+    int rowMin = (int)((ball.pos.y - ball.radius - structureOffsetY) / squareSize);
+    int rowMax = (int)((ball.pos.y + ball.radius - structureOffsetY) / squareSize);
+
+    colMin = glm::clamp(colMin, 0, width - 1);
+    colMax = glm::clamp(colMax, 0, width - 1);
+    rowMin = glm::clamp(rowMin, 0, height - 1);
+    rowMax = glm::clamp(rowMax, 0, height - 1);
+
+    bool collided = false;
+
+    for (int col = colMin; col <= colMax; col++) {
+        for (int row = rowMin; row <= rowMax; row++) {
+            Cell& cell = miniGrid[col][row];
+
+            // Skip empty cells
+            if (cell.content == "" && !cell.highlighted) continue;
+
+            // Cell boundaries
+            float cellLeft = structureOffsetX + col * squareSize;
+            float cellRight = cellLeft + squareSize;
+            float cellBottom = structureOffsetY + row * squareSize;
+            float cellTop = cellBottom + squareSize;
+
+            // Find closest point on cell to ball center
+            float closestX = glm::clamp(ball.pos.x, cellLeft, cellRight);
+            float closestY = glm::clamp(ball.pos.y, cellBottom, cellTop);
+
+            float distX = ball.pos.x - closestX;
+            float distY = ball.pos.y - closestY;
+            float distanceSquared = distX * distX + distY * distY;
+
+            // If colliding with this cell
+            if (distanceSquared < ball.radius * ball.radius) {
+                collided = true;
+
+                // Push ball out along shortest distance
+                float distance = sqrt(distanceSquared);
+                if (distance > 0.0001f) {
+                    float overlap = ball.radius - distance;
+                    ball.pos.x += (distX / distance) * overlap;
+                    ball.pos.y += (distY / distance) * overlap;
+
+                    // Reflect velocity
+                    float dotProduct = ball.vel.x * distX + ball.vel.y * distY;
+                    float bounceFactor = (cell.content == "bumper") ? 1.5f : 1.0f;
+                    ball.vel.x -= bounceFactor * 2.0f * dotProduct * distX / (distance * distance);
+                    ball.vel.y -= bounceFactor * 2.0f * dotProduct * distY / (distance * distance);
+
+                    // Add paddle velocity influence
+                    ball.vel.x += paddleVelX * 0.5f;
+                }
+            }
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+void Tema1::CreateBreakoutGrid() {
+    breakoutBlocks.clear();
+
+    auto window_res = window->GetResolution();
+
+    int rows = 8;
+    int cols = 12;
+    float spacing = 8.0f;
+
+    // Scale to full screen width
+    float totalSpacing = spacing * (cols + 1);
+    float blockWidth = (window_res.x - totalSpacing) / cols;
+    float blockHeight = 40.0f;
+
+    // Center horizontally, start from top
+    float startX = spacing;
+    float startY = window_res.y - spacing - blockHeight;
+
+    // Different color for each block
+    std::vector<glm::vec3> colors = {
+        glm::vec3(1.0f, 0.2f, 0.2f),  // red
+        glm::vec3(1.0f, 0.5f, 0.0f),  // orange
+        glm::vec3(1.0f, 0.8f, 0.0f),  // yellow
+        glm::vec3(0.2f, 1.0f, 0.2f),  // green
+        glm::vec3(0.2f, 0.5f, 1.0f),  // blue
+        glm::vec3(0.6f, 0.2f, 1.0f),  // purple
+        glm::vec3(1.0f, 0.2f, 0.8f),  // pink
+        glm::vec3(0.2f, 1.0f, 1.0f),  // cyan
+    };
+
+    for (int row = 0; row < rows; row++) {
+        for (int col = 0; col < cols; col++) {
+            BreakoutBlock block;
+            block.pos.x = startX + col * (blockWidth + spacing);
+            block.pos.y = startY - row * (blockHeight + spacing);
+            block.width = blockWidth;
+            block.height = blockHeight;
+            block.hits = 2;
+            block.color = colors[row % colors.size()];
+            breakoutBlocks.push_back(block);
+        }
+    }
+}
+
+void Tema1::DrawBreakoutBlocks() {
+    for (const auto& block : breakoutBlocks) {
+        if (block.hits > 0) {
+            modelMatrix = glm::mat3(1);
+            modelMatrix *= transform2D::Translate(block.pos.x, block.pos.y);
+            modelMatrix *= transform2D::Scale(block.width, block.height);
+            RenderMesh2D(meshes["square"], modelMatrix, block.color);
+        }
+    }
+}
+
+void Tema1::CheckBallBlockCollision(Ball& ball) {
+    for (auto& block : breakoutBlocks) {
+        if (block.hits <= 0) continue;
+
+        float blockLeft = block.pos.x;
+        float blockRight = block.pos.x + block.width;
+        float blockBottom = block.pos.y;
+        float blockTop = block.pos.y + block.height;
+
+        // Quick AABB check
+        if (ball.pos.x + ball.radius < blockLeft ||
+            ball.pos.x - ball.radius > blockRight ||
+            ball.pos.y + ball.radius < blockBottom ||
+            ball.pos.y - ball.radius > blockTop) {
+            continue;
+        }
+
+        // Find closest point on block to ball center
+        float closestX = glm::clamp(ball.pos.x, blockLeft, blockRight);
+        float closestY = glm::clamp(ball.pos.y, blockBottom, blockTop);
+
+        float distX = ball.pos.x - closestX;
+        float distY = ball.pos.y - closestY;
+        float distanceSquared = distX * distX + distY * distY;
+
+        // Check collision
+        if (distanceSquared < ball.radius * ball.radius) {
+            float distance = sqrt(distanceSquared);
+            if (distance > 0.0001f) {
+                // Push ball out
+                float overlap = ball.radius - distance;
+                ball.pos.x += (distX / distance) * overlap;
+                ball.pos.y += (distY / distance) * overlap;
+
+                // Reflect velocity
+                float dotProduct = ball.vel.x * distX + ball.vel.y * distY;
+                ball.vel.x -= 2.0f * dotProduct * distX / (distance * distance);
+                ball.vel.y -= 2.0f * dotProduct * distY / (distance * distance);
+
+                // Damage block
+                block.hits--;
+                if (block.hits == 1) {
+                    // Damaged - change color (darker)
+                    block.color = block.color * 0.5f;
+                }
+                // If hits == 0, block won't be drawn anymore
+                else if (block.hits <= 0) {
+                    score += 100;
+				}
+            }
+
+            break; // Only collide with one block per frame
+        }
+    }
 }
