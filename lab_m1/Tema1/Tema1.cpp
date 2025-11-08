@@ -15,6 +15,10 @@ Tema1::~Tema1()
 
 void Tema1::Init()
 {
+    glm::ivec2 res = window->GetResolution();
+    textRenderer = new gfxc::TextRenderer(window->props.selfDir, res.x, res.y);
+    std::string fontPath = PATH_JOIN(window->props.selfDir, "src", "lab_m1", "Tema1", "Hack-Bold.ttf");
+    textRenderer->Load(fontPath, 60);
     glDisable(GL_DEPTH_TEST);
     glm::ivec2 resolution = window->GetResolution();
     auto camera = GetSceneCamera();
@@ -23,9 +27,8 @@ void Tema1::Init()
     camera->SetRotation(glm::vec3(0, 0, 0));
     camera->Update();
     GetCameraInput()->SetActive(false);
+    
     Ball ball;
-    ball.pos = { 300.0f, 200.0f };
-    ball.vel = { 800.0f, 800.0f }; // speed & direction
     ball.radius = 10.0f;
 	balls.push_back(ball);
     CreateBreakoutGrid();
@@ -35,6 +38,7 @@ void Tema1::Init()
     CreateBlock();
     CreateCannon();
     CreateMotor();
+    CreateHeart("heart",glm::vec3(1,0,0));
     // Create a square and Frame
     CreateSquareAndFrame();
     //CreateStartButton
@@ -127,6 +131,17 @@ void Tema1::Update(float deltaTimeSeconds) {
 			UpdateBall(ball, deltaTimeSeconds, window_res.x, window_res.y);
 		}
         DrawBreakoutBlocks();
+        for (int h = 0; h < lives; h++) {
+            glm::mat3 modelMatrix = glm::mat3(1);
+            modelMatrix *= transform2D::Translate(50 + h * 60, window->GetResolution().y - squareSize/2);
+            modelMatrix *= transform2D::Scale(40, 40); // adjust size as needed
+            RenderMesh2D(meshes["heart"],modelMatrix,glm::vec3(1,0,0));
+        }
+        textRenderer->RenderText("SCORE: " + std::to_string(score),
+            10.0f,                      // x
+            window->GetResolution().y - window->GetResolution().y*670.0f/initY,       // y
+            0.3f,                       // scale
+            glm::vec3(1.0f, 0.9f, 0.2f));
         return;
     }
     else {
@@ -155,7 +170,7 @@ void Tema1::FrameEnd()
 
 void Tema1::OnInputUpdate(float deltaTime, int mods)
 {
-    float speed = 300.0f; // pixels per second
+    float speed = 1000.0f; // pixels per second
     if (isPlayMode) {
         if (window->KeyHold(GLFW_KEY_LEFT))  structureOffsetX -= deltaTime * speed;
         if (window->KeyHold(GLFW_KEY_RIGHT)) structureOffsetX += deltaTime * speed;
@@ -166,7 +181,14 @@ void Tema1::OnInputUpdate(float deltaTime, int mods)
 void Tema1::OnKeyPress(int key, int mods)
 {
     if (key == GLFW_KEY_P && canPlay) {
+        stuckBall = true;
         SwitchToPlayMode();
+    }
+    if (key == GLFW_KEY_SPACE&&stuckBall==true) {
+        stuckBall = false;
+        float x = (rand() % 2 == 0) ? -1.0f : 1.0f;
+        glm::vec2 dir = glm::normalize(glm::vec2(x * cos(glm::radians(45.0f)), sin(glm::radians(45.0f))));
+        balls[0].vel = dir * 800.0f;
     }
 }
 
@@ -226,7 +248,6 @@ void Tema1::OnWindowResize(int width, int height)
     float gridHeight = gridRows * squareSize + padding;
     offsetGridX = width - gridWidth - padding;
     offsetGridY = padding;
-
     // Rescale existing breakout blocks instead of recreating
     if (isPlayMode && !breakoutBlocks.empty()) {
         int rows = 8;
@@ -235,7 +256,7 @@ void Tema1::OnWindowResize(int width, int height)
 
         float totalSpacing = spacing * (cols + 1);
         float blockWidth = (width - totalSpacing) / cols;
-        float blockHeight = 40.0f;
+        float blockHeight = 20.0f;
         float startX = spacing;
         float startY = height - spacing - blockHeight;
 
@@ -244,7 +265,7 @@ void Tema1::OnWindowResize(int width, int height)
             for (int col = 0; col < cols; col++) {
                 if (idx < breakoutBlocks.size()) {
                     breakoutBlocks[idx].pos.x = startX + col * (blockWidth + spacing);
-                    breakoutBlocks[idx].pos.y = startY - row * (blockHeight + spacing);
+                    breakoutBlocks[idx].pos.y = startY - row * (blockHeight + spacing)-squareSize;
                     breakoutBlocks[idx].width = blockWidth;
                     breakoutBlocks[idx].height = blockHeight;
                     idx++;
@@ -252,6 +273,28 @@ void Tema1::OnWindowResize(int width, int height)
             }
         }
     }
+}
+
+void Tema1::CreateHeart(const char* name, glm::vec3 color) {
+    std::vector<VertexFormat> vertices;
+    std::vector<unsigned int> indices;
+
+    // Left circle top
+    vertices.push_back(VertexFormat(glm::vec3(-0.25f, 0.25f, 0), color));
+    vertices.push_back(VertexFormat(glm::vec3(0.25f, 0.25f, 0), color));
+    vertices.push_back(VertexFormat(glm::vec3(-0.5f, 0.0f, 0), color));
+    vertices.push_back(VertexFormat(glm::vec3(0.5f, 0.0f, 0), color));
+    vertices.push_back(VertexFormat(glm::vec3(0.0f, -0.5f, 0), color));
+
+    // indices form the heart shape
+    indices = { 0, 1, 4,  // bottom
+                0, 2, 4,
+                1, 3, 4,
+                2, 0, 1,
+                1, 3, 4 };
+
+    Mesh* heart = new Mesh(name);
+    CreateMesh(name, vertices, indices);
 }
 
 void Tema1::CreateBumperSemicircle() {
@@ -1001,11 +1044,11 @@ void Tema1::DrawMiniGrid() {
                 float drawY = startY + row * squareSize + squareSize / 2;
                 DrawBlockPlayer(drawX, drawY, glm::vec3(1, 0, 1));
             }
-            else {
+            /*else {
                 float drawX = startX + col * squareSize + squareSize / 2;
                 float drawY = startY + row * squareSize + squareSize / 2;
                 DrawBlockPlayer(drawX, drawY, glm::vec3(1, 1, 1));
-            }
+            }*/
         }
     }
 }
@@ -1022,13 +1065,21 @@ bool Tema1::CheckPlacementRules() {
                 // 1. Check no bumper directly above in the 3-column area
                 for (int dx = -1; dx <= 1; dx++) {
                     int nx = i + dx;
-                    int ny = j + 1;
-                    if (nx >= 0 && nx < gridCols && ny < gridRows) {
-                        if (grid[nx][ny].content == "bumper") {
-                            printf("Bumper at [%d, %d] has another bumper at [%d,%d]\n",i,j,nx,ny);
+
+                    // check bounds horizontally
+                    if (nx < 0 || nx >= gridCols)
+                        continue;
+
+                    // scan upward
+                    for (int ny = j + 1; ny < gridRows; ny++) {
+                        if (grid[nx][ny].content != "") {
+                            printf("Cannot place bumper at [%d,%d], blocked by cell [%d,%d]\n", i, j, nx, ny);
                             canPlace = false;
+                            break; // stop scanning upward for this column
                         }
                     }
+
+                    if (!canPlace) break; // stop checking other dx if already invalid
                 }
 
                 // 2. Check no adjacent bumpers diagonally
@@ -1101,8 +1152,8 @@ bool Tema1::CheckConnectivity() {
     q.push({ startX, startY });
     visited[startX][startY] = true;
 
-    int dx[8] = { 1, -1, 0, 0,  1,  1, -1, -1 };
-    int dy[8] = { 0, 0, 1, -1,  1, -1,  1, -1 };
+    int dx[8] = { 1, -1, 0, 0};
+    int dy[8] = { 0, 0, 1, -1};
 
     while (!q.empty()) {
         std::pair<int, int> front = q.front();
@@ -1110,7 +1161,7 @@ bool Tema1::CheckConnectivity() {
         int y = front.second;
         q.pop();
 
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < 4; i++) {
             int nx = x + dx[i];
             int ny = y + dy[i];
 
@@ -1145,6 +1196,15 @@ bool Tema1::CheckConnectivity() {
 
 void Tema1::UpdateBall(Ball& ball, float dt, float windowWidth, float windowHeight)
 {
+    if (stuckBall) {
+        ball.vel = glm::vec2(0,0);
+        ball.pos.x = structureOffsetX+width*squareSize/2;
+        ball.pos.y = structureOffsetY+height*squareSize+ball.radius;
+        modelMatrix = glm::mat3(1);
+        modelMatrix *= transform2D::Translate(ball.pos.x, ball.pos.y);
+        RenderMesh2D(meshes["ball"], modelMatrix, glm::vec3(1, 0, 0));
+        return;
+    }
     // Move ball
     ball.pos += ball.vel * dt;
 
@@ -1162,18 +1222,20 @@ void Tema1::UpdateBall(Ball& ball, float dt, float windowWidth, float windowHeig
     }
     if (ball.pos.y + ball.radius > windowHeight) {
         ball.pos.y = windowHeight - ball.radius;
-        ball.vel.y = -ball.vel.y;
+        ball.vel.y = -ball.vel.y-10.0f;
     }
     if (ball.pos.y - ball.radius < 0.0f) {
         lives--;
         if (lives <= 0) {
-            exit(0); // game over
+            //exit(0); // game over
         }
         else {
             // reset ball to center
+            stuckBall = true;
             ball.pos = glm::vec2(windowWidth / 2.0f, windowHeight / 2.0f);
             ball.vel = glm::vec2(0.0f, -400.0f);
         }
+        
     }
 
     // Clamp velocity
@@ -1254,7 +1316,7 @@ void Tema1::CheckBallPaddleCollision(Ball& ball, float paddleVelX) {
                     float dotProduct = ball.vel.x * distX + ball.vel.y * distY;
                     float bounceFactor = (cell.content == "bumper") ? 1.5f : 1.0f;
                     ball.vel.x -= bounceFactor * 2.0f * dotProduct * distX / (distance * distance);
-                    ball.vel.y -= bounceFactor * 2.0f * dotProduct * distY / (distance * distance);
+                    ball.vel.y -= bounceFactor * 2.0f * dotProduct * distY / (distance * distance) - 10.0f;
 
                     // Add paddle velocity influence
                     ball.vel.x += paddleVelX * 0.5f;
@@ -1286,7 +1348,7 @@ void Tema1::CreateBreakoutGrid() {
     // Scale to full screen width
     float totalSpacing = spacing * (cols + 1);
     float blockWidth = (window_res.x - totalSpacing) / cols;
-    float blockHeight = 40.0f;
+    float blockHeight = 20.0f;
 
     // Center horizontally, start from top
     float startX = spacing;
@@ -1308,7 +1370,7 @@ void Tema1::CreateBreakoutGrid() {
         for (int col = 0; col < cols; col++) {
             BreakoutBlock block;
             block.pos.x = startX + col * (blockWidth + spacing);
-            block.pos.y = startY - row * (blockHeight + spacing);
+            block.pos.y = startY - row * (blockHeight + spacing)-squareSize;
             block.width = blockWidth;
             block.height = blockHeight;
             block.hits = 2;
@@ -1319,13 +1381,18 @@ void Tema1::CreateBreakoutGrid() {
 }
 
 void Tema1::DrawBreakoutBlocks() {
+    bool remaining = false;
     for (const auto& block : breakoutBlocks) {
         if (block.hits > 0) {
             modelMatrix = glm::mat3(1);
             modelMatrix *= transform2D::Translate(block.pos.x, block.pos.y);
             modelMatrix *= transform2D::Scale(block.width, block.height);
             RenderMesh2D(meshes["square"], modelMatrix, block.color);
+            remaining = true;
         }
+    }
+    if (!remaining) {
+        printf("GAME OVER, final score:%d\n", score);
     }
 }
 

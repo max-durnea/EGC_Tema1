@@ -3,6 +3,7 @@
 #include "components/simple_scene.h"
 #include <vector> 
 #include "utils/glm_utils.h"
+#include "lab_m1/Tema1/text_renderer.h"
 #include <queue>
 namespace m1
 {
@@ -95,6 +96,7 @@ namespace m1
         // TODO(student): Class variables go here
         glm::mat3 modelMatrix;
         int squareSize = 50;
+        int squareSizeG = squareSize / 2;
         int gridCols = 17;
         int gridRows = 9;
         int offsetGridX = 350;
@@ -144,6 +146,8 @@ namespace m1
         void UpdateBall(Ball& ball, float dt, float windowWidth, float windowHeight);
         void CheckBallPaddleCollision(Ball& ball, float paddleVelX);
 		std::vector<Ball> balls;
+		bool ballLaunched = false;
+        bool isBreakoutMode = false;
         // breakout blocks
         std::vector<BreakoutBlock> breakoutBlocks;
         void CreateBreakoutGrid();
@@ -152,6 +156,12 @@ namespace m1
         // lives and score
         int score = 0;
         int lives = 3;
+        bool stuckBall=true;
+        void CreateHeart(const char* name, glm::vec3 color);
+        // Text
+        gfxc::TextRenderer* textRenderer;
+        float initX = 1280.0f;
+        float initY = 720.0f;
     };
 };   // namespace m1
 
