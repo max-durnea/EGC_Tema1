@@ -11,8 +11,10 @@ namespace m1
         glm::vec2 pos;      // top-left corner position
         float width;
         float height;
-        int hits;           // 2 = full health, 1 = damaged, 0 = destroyed
-        glm::vec3 color;    // current color
+        int hits;           
+        glm::vec3 color;    
+        float scale;        
+        bool destroying;    
     };
     struct Cell {
         glm::vec2 pos;
@@ -22,14 +24,13 @@ namespace m1
         glm::vec3 color = glm::vec3(1, 1, 1);
         std::string content = ""; // "bumper", "block"
     };
-    // Add this struct definition (if you don't already have it)
     struct PanelSlot {
         bool highlighted;
         glm::vec3 color;
     };
     struct PlacedBumper {
-        int gridX;  // center column position
-        int gridY;  // bottom row position
+        int gridX; 
+        int gridY; 
         glm::vec3 color;
     };
     struct PlacedBlock {
@@ -42,9 +43,9 @@ namespace m1
 	};
 
     struct Ball {
-        glm::vec2 pos;   // current position (center of ball)
-        glm::vec2 vel;   // velocity (units per second)
-        float radius;    // radius in world units
+        glm::vec2 pos;   
+        glm::vec2 vel;   
+        float radius;    
     };
     class Tema1 : public gfxc::SimpleScene
     {
@@ -76,7 +77,7 @@ namespace m1
         void DrawLeftPanel();
         void CreateSquareAndFrame();
         bool TryPlaceBumper(int centerCol, int row);
-        bool TryRemoveBumper(int centerCol, int row); // <- new: remove placed bumper
+        bool TryRemoveBumper(int centerCol, int row); 
         void DrawPlacedBumpers();
         void CreateBlock();
         void CreateCannon();
@@ -89,11 +90,10 @@ namespace m1
         bool TryRemoveBlock(int i, int j);
         void SwitchToPlayMode();
         bool isPlayMode = false;
-        //float structureOffsetY = 0.0f;  // Vertical offset for the entire structure
-        //float structureSpeed = 300.0f;  // Movement speed in pixels per second
+        //float structureOffsetY = 0.0f; 
+        //float structureSpeed = 300.0f;  
         int mouseYPos;
         int mouseXPos;
-        // TODO(student): Class variables go here
         glm::mat3 modelMatrix;
         int squareSize = 50;
         int squareSizeG = squareSize / 2;

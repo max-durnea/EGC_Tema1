@@ -39,12 +39,12 @@ void Tema1::Init()
     CreateCannon();
     CreateMotor();
     CreateHeart("heart",glm::vec3(1,0,0));
-    // Create a square and Frame
+
     CreateSquareAndFrame();
-    //CreateStartButton
+
     CreateStartButton();
     CreateSlot();
-    // Initialize square grid
+
     grid.resize(gridCols);
     for (int r = 0; r < gridCols; r++)
         grid[r].resize(gridRows);
@@ -58,12 +58,10 @@ void Tema1::Init()
         }
     }
 
-    // Initialize left panel slots
     for (int i = 0; i < 4; i++) {
         leftPanelSlots[i].highlighted = false;
         leftPanelSlots[i].color = glm::vec3(0, 0, 0);
     }
-    // Initialize 10 slots
 	slots.resize(numSlots);
     for (int i = 0; i < numSlots; i++) {
 		slots[i].draw = true;
@@ -90,7 +88,6 @@ void Tema1::FrameStart() {
 
         glm::ivec2 res = window->GetResolution();
 
-        // === CALCULATE PERFECT HORIZONTAL LAYOUT ===
         float totalButtonsWidth = numSlots * buttonSize;
         float totalPadding = (numSlots + 1) * paddingPanel;
         float availableSpace = res.x - offsetGridX;  // space to the right of grid
@@ -98,11 +95,10 @@ void Tema1::FrameStart() {
 
         float yPos = res.y - buttonSize - paddingPanel;  // near top
 
-        // === DRAW START BUTTON (rightmost) ===
+
         float startButtonX = res.x - buttonSize - paddingPanel;
         DrawStartButton(startButtonX, yPos);
 
-        // === DRAW 10 SLOTS (from right to left) ===
         for (int i = 0; i < numSlots; i++) {
             if(slots[i].draw==false)
 				continue;
@@ -110,7 +106,6 @@ void Tema1::FrameStart() {
             DrawSlot(x, yPos, glm::vec3(0.1f, 0.7f, 0.1f));
         }
 
-        // Your existing objects
         float slotWidth = offsetGridX / 2;
         float slotHeight = res.y / 4.0f;
         DrawMotor(slotWidth, slotHeight * 0.5f);
@@ -130,11 +125,23 @@ void Tema1::Update(float deltaTimeSeconds) {
 			auto window_res = window->GetResolution();
 			UpdateBall(ball, deltaTimeSeconds, window_res.x, window_res.y);
 		}
+        
+
+        for (auto& block : breakoutBlocks) {
+            if (block.destroying) {
+                block.scale -= deltaTimeSeconds * 3.0f; // shrink speed
+                if (block.scale <= 0.0f) {
+                    block.scale = 0.0f;
+                    block.destroying = false;
+                }
+            }
+        }
+        
         DrawBreakoutBlocks();
         for (int h = 0; h < lives; h++) {
             glm::mat3 modelMatrix = glm::mat3(1);
             modelMatrix *= transform2D::Translate(50 + h * 60, window->GetResolution().y - squareSize/2);
-            modelMatrix *= transform2D::Scale(40, 40); // adjust size as needed
+            modelMatrix *= transform2D::Scale(40, 40); 
             RenderMesh2D(meshes["heart"],modelMatrix,glm::vec3(1,0,0));
         }
         textRenderer->RenderText("SCORE: " + std::to_string(score),
@@ -145,7 +152,7 @@ void Tema1::Update(float deltaTimeSeconds) {
         return;
     }
     else {
-        // Edit mode - dragging objects
+
         if (isDragging && draggedShape != "") {
             if (draggedShape == "bumper") {
                 DrawBumper(mouseXPos, mouseYPos + squareSize / 2);
@@ -206,7 +213,6 @@ void Tema1::OnMouseBtnPress(int mouseX, int mouseY, int button, int mods)
 {
     int mouseY_gl = window->GetResolution().y - mouseY;
 
-    // === CLICK START BUTTON ===
     float startButtonX = window->GetResolution().x - buttonSize - paddingPanel-buttonSize/2;
     float startButtonY = window->GetResolution().y - buttonSize - paddingPanel-buttonSize/2;
 	printf("Mouse click at: %d %d\n", mouseX, mouseY_gl);
@@ -221,7 +227,6 @@ void Tema1::OnMouseBtnPress(int mouseX, int mouseY, int button, int mods)
         }
     }
 
-    // existing click logic
     CheckSquareClick(mouseX, mouseY, button, mods);
 }
 
@@ -248,7 +253,7 @@ void Tema1::OnWindowResize(int width, int height)
     float gridHeight = gridRows * squareSize + padding;
     offsetGridX = width - gridWidth - padding;
     offsetGridY = padding;
-    // Rescale existing breakout blocks instead of recreating
+
     if (isPlayMode && !breakoutBlocks.empty()) {
         int rows = 8;
         int cols = 12;
@@ -278,16 +283,13 @@ void Tema1::OnWindowResize(int width, int height)
 void Tema1::CreateHeart(const char* name, glm::vec3 color) {
     std::vector<VertexFormat> vertices;
     std::vector<unsigned int> indices;
-
-    // Left circle top
     vertices.push_back(VertexFormat(glm::vec3(-0.25f, 0.25f, 0), color));
     vertices.push_back(VertexFormat(glm::vec3(0.25f, 0.25f, 0), color));
     vertices.push_back(VertexFormat(glm::vec3(-0.5f, 0.0f, 0), color));
     vertices.push_back(VertexFormat(glm::vec3(0.5f, 0.0f, 0), color));
     vertices.push_back(VertexFormat(glm::vec3(0.0f, -0.5f, 0), color));
 
-    // indices form the heart shape
-    indices = { 0, 1, 4,  // bottom
+    indices = { 0, 1, 4,  
                 0, 2, 4,
                 1, 3, 4,
                 2, 0, 1,
@@ -298,23 +300,23 @@ void Tema1::CreateHeart(const char* name, glm::vec3 color) {
 }
 
 void Tema1::CreateBumperSemicircle() {
-    // Define in grid square units: 3 squares wide, 1 square tall
-    float width = 3.0f;   // 3 grid squares wide
-    float height = 1.0f;  // 1 grid square tall
-    float radiusX = width / 2.0f;  // 1.5 squares
-    float radiusY = height;        // 1 square
+   
+    float width = 3.0f;   
+    float height = 1.0f; 
+    float radiusX = width / 2.0f;  
+    float radiusY = height;        
 
     int segments = 20;
     std::vector<VertexFormat> vertices;
     std::vector<unsigned int> indices;
 
-    // Center at bottom of semicircle
+
     vertices.push_back(VertexFormat(glm::vec3(0, 0, 0)));
 
     for (int i = 0; i <= segments; i++) {
-        float angle = M_PI * i / segments;  // 0 to pi
-        float x = radiusX * cos(angle);     // -1.5 to +1.5
-        float y = radiusY * sin(angle);     // 0 to 1
+        float angle = M_PI * i / segments;  
+        float x = radiusX * cos(angle);     
+        float y = radiusY * sin(angle);    
         vertices.push_back(VertexFormat(glm::vec3(x, y, 0)));
     }
 
@@ -331,10 +333,10 @@ void Tema1::CreateBumperSemicircle() {
 
 void Tema1::CreateSlot() {
     std::vector<VertexFormat> vertices{
-        VertexFormat(glm::vec3(-0.5f, -0.5f, 0)),  // bottom-left
-        VertexFormat(glm::vec3(0.5f, -0.5f, 0)),   // bottom-right
-        VertexFormat(glm::vec3(-0.5f, 0.5f, 0)),   // top-left
-        VertexFormat(glm::vec3(0.5f, 0.5f, 0))     // top-right
+        VertexFormat(glm::vec3(-0.5f, -0.5f, 0)),  
+        VertexFormat(glm::vec3(0.5f, -0.5f, 0)),  
+        VertexFormat(glm::vec3(-0.5f, 0.5f, 0)),   
+        VertexFormat(glm::vec3(0.5f, 0.5f, 0))    
     };
 
     std::vector<unsigned int> indices{
@@ -387,18 +389,16 @@ void Tema1::CreateBallMesh(const char* name, float radius, int segments = 32) {
         vertices.push_back(VertexFormat(glm::vec3(x, y, 0)));
     }
 
-    // create triangles
     for (int i = 1; i <= segments; i++) {
-        indices.push_back(0);       // center
-        indices.push_back(i);       // current vertex
-        indices.push_back(i + 1);   // next vertex
+        indices.push_back(0);       
+        indices.push_back(i);       
+        indices.push_back(i + 1);   
     }
 
     CreateMesh(name, vertices, indices);
 }
 
 void Tema1::CreateMotor() {
-    // Motor base (1x1 square at bottom) - colored top part
     float size = 1.0f;
     std::vector<VertexFormat> baseVertices{
         { {-size / 2, -size, 0} },
@@ -409,20 +409,19 @@ void Tema1::CreateMotor() {
     std::vector<unsigned int> baseIndices{ 0,1,2, 2,1,3 };
     CreateMesh("motor_base", baseVertices, baseIndices);
 
-    // Motor flame (triangle on top, 1 square tall) - orange/red flame
     std::vector<VertexFormat> flameVertices{
-        { {-size / 2, 0, 0} },      // bottom left
-        { {size / 2, 0, 0} },       // bottom right
-        { {0, size, 0} }          // top center
+        { {-size / 2, 0, 0} },     
+        { {size / 2, 0, 0} },       
+        { {0, size, 0} }          
     };
     std::vector<unsigned int> flameIndices{ 0,1,2 };
     CreateMesh("motor_flame", flameVertices, flameIndices);
 }
 void Tema1::CreateCannon() {
-    // Cannon is 1x3 squares tall with multiple gray sections
+
     float width = 1.0f;
 
-    // Base section (dark gray) - bottom square
+
     std::vector<VertexFormat> baseVertices{
         { {-width / 2, -1.5f, 0} },
         { {width / 2, -1.5f, 0} },
@@ -432,7 +431,7 @@ void Tema1::CreateCannon() {
     std::vector<unsigned int> baseIndices{ 0,1,2, 2,1,3 };
     CreateMesh("cannon_base", baseVertices, baseIndices);
 
-    // Middle section (medium gray)
+
     std::vector<VertexFormat> midVertices{
         { {-width / 2, -0.5f, 0} },
         { {width / 2, -0.5f, 0} },
@@ -442,7 +441,7 @@ void Tema1::CreateCannon() {
     std::vector<unsigned int> midIndices{ 0,1,2, 2,1,3 };
     CreateMesh("cannon_mid", midVertices, midIndices);
 
-    // Barrel section (light gray) - top square
+
     std::vector<VertexFormat> barrelVertices{
         { {-width / 2, 0.5f, 0} },
         { {width / 2, 0.5f, 0} },
@@ -455,13 +454,11 @@ void Tema1::CreateCannon() {
 
 void Tema1::CheckSquareClick(int mouseX, int mouseY, int button, int mods) {
     if (isPlayMode) {
-        // Don't allow placement in play mode
         return;
     }
     int mouseY_gl = window->GetResolution().y - mouseY;
     printf("Mouse click at: %d %d\n", mouseX, mouseY_gl);
 
-    // Check left panel slots first
     double window_height = window->GetResolution().y;
     double rect_height = window_height / 4.0;
     double panelWidth = offsetGridX;
@@ -501,7 +498,6 @@ void Tema1::CheckSquareClick(int mouseX, int mouseY, int button, int mods) {
         }
     }
 
-    // If no panel slot was clicked, check grid squares for bumper placement
     if (!panelSlotFound) {
         bool squareFound = false;
         for (int i = 0; i < gridCols && !squareFound; i++) {
@@ -512,10 +508,7 @@ void Tema1::CheckSquareClick(int mouseX, int mouseY, int button, int mods) {
                 if (mouseX >= cellX && mouseX <= cellX + squareSize - padding &&
                     mouseY_gl >= cellY && mouseY_gl <= cellY + squareSize - padding) {
 
-                    // Try to place a bumper at this position
-                    // Bumper needs: 3 squares wide (i-1, i, i+1) and 2 squares tall (j, j+1)
-                    // Center column is i, so we need i-1 and i+1 to exist
-                                        // If user right-clicks (button == 2), try to remove a placed block
+           
                     if (button == 2) {
                         if (TryRemoveBlock(i, j)) {
                             printf("Removed block at [%d, %d]\n", i, j);
@@ -559,23 +552,18 @@ void Tema1::CheckSquareClick(int mouseX, int mouseY, int button, int mods) {
     }
 }
 bool Tema1::TryPlaceBumper(int centerCol, int row) {
-    // Bumper needs:
-    // - 3 columns: centerCol-1, centerCol, centerCol+1
-    // - 2 rows: row, row+1
+
 	if (availableSlots <= 0) {
         return false;
 	}
     int leftCol = centerCol - 1;
     int rightCol = centerCol + 1;
     int topRow = row;
-
-    // Check bounds - FIX: use correct grid dimensions
     if (leftCol < 0 || rightCol >= gridCols || topRow >= gridRows) {
         printf("Out of bounds: leftCol=%d, rightCol=%d, topRow=%d\n", leftCol, rightCol, topRow);
         return false;
     }
 
-    // Check if all required squares are empty
     if (grid[leftCol][row].highlighted ||
         grid[centerCol][row].highlighted ||
         grid[rightCol][row].highlighted ||
@@ -584,7 +572,7 @@ bool Tema1::TryPlaceBumper(int centerCol, int row) {
         return false;
     }
 
-    // Mark squares as occupied
+
     grid[leftCol][row].highlighted = true;
     grid[leftCol][row].color = glm::vec3(0.5f, 0.5f, 0.5f);
     grid[leftCol][row].content = "bumper";
@@ -602,7 +590,7 @@ bool Tema1::TryPlaceBumper(int centerCol, int row) {
     grid[centerCol][topRow - 1].color = glm::vec3(0.5f, 0.5f, 0.5f);
     grid[centerCol][topRow - 1].content = "bumper";
 
-    // Store the bumper
+
     PlacedBumper bumper;
     bumper.gridX = centerCol;
     bumper.gridY = row;
@@ -711,8 +699,6 @@ bool Tema1::TryRemoveBlock(int i, int j) {
             grid[i][j].highlighted = false;
             grid[i][j].color = glm::vec3(1, 1, 1);
             grid[i][j].pivot = false;
-            // If your TryPlaceBlock marked additional cells (for larger shapes),
-            // you should also clear those here. Example for a 1xN shape:
             // for (int yy = j; yy < j + shapeHeightInSquares && yy < gridRows; ++yy) {
             //     grid[i][yy].content = "";
             //     grid[i][yy].highlighted = false;
@@ -756,10 +742,10 @@ void Tema1::DrawPlacedBlocks() {
 
 
 void Tema1::CreateBumperSquare() {
-    // 1x1 grid square, centered horizontally under semicircle
+    // 1x1 grid squar
     float size = 1.0f;
-    float sqX = -size / 2.0f;  // -0.5 to center it
-    float sqY = -size;         // -1 to 0, directly under semicircle
+    float sqX = -size / 2.0f;  // -0.5 
+    float sqY = -size;         // -1 to 0
 
     std::vector<VertexFormat> vertices;
     std::vector<unsigned int> indices;
@@ -794,7 +780,7 @@ void Tema1::DrawBumper(int x, int y) {
 void Tema1::DrawStartButton(int x, int y) {
     modelMatrix = glm::mat3(1);
     modelMatrix *= transform2D::Translate(x, y);
-    modelMatrix *= transform2D::Scale(buttonSize, buttonSize); // Example size
+    modelMatrix *= transform2D::Scale(buttonSize, buttonSize);
     RenderMesh2D(meshes["start_button"], modelMatrix, startButtonColor);
 }
 void Tema1::DrawSlot(int x, int y, glm::vec3 color) {
@@ -818,10 +804,9 @@ void Tema1::DrawCannon(int x, int y) {
     modelMatrix *= transform2D::Translate(x, y);
     modelMatrix *= transform2D::Scale(squareSize, squareSize);
 
-    // Draw three sections with different gray shades
-    RenderMesh2D(meshes["cannon_base"], modelMatrix, glm::vec3(0.3f, 0.3f, 0.3f));    // Dark gray
-    RenderMesh2D(meshes["cannon_mid"], modelMatrix, glm::vec3(0.5f, 0.5f, 0.5f));     // Medium gray
-    RenderMesh2D(meshes["cannon_barrel"], modelMatrix, glm::vec3(0.7f, 0.7f, 0.7f));  // Light gray
+    RenderMesh2D(meshes["cannon_base"], modelMatrix, glm::vec3(0.3f, 0.3f, 0.3f));    
+    RenderMesh2D(meshes["cannon_mid"], modelMatrix, glm::vec3(0.5f, 0.5f, 0.5f));     
+    RenderMesh2D(meshes["cannon_barrel"], modelMatrix, glm::vec3(0.7f, 0.7f, 0.7f));  
 }
 
 void Tema1::DrawMotor(int x, int y) {
@@ -831,10 +816,8 @@ void Tema1::DrawMotor(int x, int y) {
     modelMatrix *= transform2D::Translate(x, y);
     modelMatrix *= transform2D::Scale(squareSize, squareSize);
 
-    // Draw base (colored block at top)
-    RenderMesh2D(meshes["motor_base"], modelMatrix, glm::vec3(0.2f, 0.6f, 0.9f));  // Blue base
-    // Draw flame (orange/red at bottom)
-    RenderMesh2D(meshes["motor_flame"], modelMatrix, glm::vec3(1.0f, 0.4f, 0.0f)); // Orange flame
+    RenderMesh2D(meshes["motor_base"], modelMatrix, glm::vec3(0.2f, 0.6f, 0.9f)); 
+    RenderMesh2D(meshes["motor_flame"], modelMatrix, glm::vec3(1.0f, 0.4f, 0.0f)); 
 }
 
 void Tema1::DrawLeftPanel() {
@@ -958,7 +941,7 @@ void Tema1::DrawBlockPlayer(int x, int y, glm::vec3 color) {
 //Playing with the structure
 void Tema1::SwitchToPlayMode() {
     isPlayMode = !isPlayMode;
-    structureOffsetY = 0.0f;  // Reset position when switching modes
+    structureOffsetY = 0.0f;  //Reset position when switching modes
 
     if (isPlayMode) {
         printf("=== PLAY MODE ===\n");
@@ -1057,12 +1040,29 @@ void Tema1::DrawMiniGrid() {
 // rules:
 bool Tema1::CheckPlacementRules() {
     bool canPlace = true;
+    
+    bool hasObjects = false;
+    for (int i = 0; i < gridCols; i++) {
+        for (int j = 0; j < gridRows; j++) {
+            if (grid[i][j].content != "") {
+                hasObjects = true;
+                break;
+            }
+        }
+        if (hasObjects) break;
+    }
+    
+    if (!hasObjects) {
+        startButtonColor = glm::vec3(1, 0, 0);
+        canPlay = false;
+        return false;
+    }
 
     for (int i = 0; i < gridCols; i++) {
         for (int j = 0; j < gridRows; j++) {
             if (grid[i][j].pivot&&grid[i][j].content== "bumper") {
 				printf("Checking bumper at [%d, %d]\n", i, j);
-                // 1. Check no bumper directly above in the 3-column area
+                //Check no bumper directly above in the 3-column area
                 for (int dx = -1; dx <= 1; dx++) {
                     int nx = i + dx;
 
@@ -1082,7 +1082,7 @@ bool Tema1::CheckPlacementRules() {
                     if (!canPlace) break; // stop checking other dx if already invalid
                 }
 
-                // 2. Check no adjacent bumpers diagonally
+   
                 if (i - 1 >= 0 && j - 1 >= 0 && grid[i - 1][j - 1].content == "bumper") {
                     canPlace = false;
                     printf("Bumper at [%d,%d] has another Bumper at [%d,%d]\n", i, j, i - 1, j - 1);
@@ -1097,14 +1097,13 @@ bool Tema1::CheckPlacementRules() {
         }
     }
 
-    // If any of the checks failed, mark the start button red
     canPlace = CheckConnectivity()&&canPlace;
     if (!canPlace) {
-        startButtonColor = glm::vec3(1, 0, 0); // red
+        startButtonColor = glm::vec3(1, 0, 0); 
         canPlay = false;
     }
     else {
-        startButtonColor = glm::vec3(0, 1, 0); // green
+        startButtonColor = glm::vec3(0, 1, 0); 
         canPlay = true;
     }
 	DebugPrintGrid();
@@ -1130,8 +1129,6 @@ void Tema1::DebugPrintGrid()
 
 bool Tema1::CheckConnectivity() {
     std::vector<std::vector<bool>> visited(gridCols, std::vector<bool>(gridRows, false));
-
-    // 1) Find a starting cell that has content
     int startX = -1, startY = -1;
     for (int x = 0; x < gridCols; x++) {
         for (int y = 0; y < gridRows; y++) {
@@ -1144,10 +1141,8 @@ bool Tema1::CheckConnectivity() {
         if (startX != -1) break;
     }
 
-    // no blocks placed = trivially connected
+    // no blocks placed 
     if (startX == -1) return true;
-
-    // 2) BFS from the first found cell
     std::queue<std::pair<int, int>> q;
     q.push({ startX, startY });
     visited[startX][startY] = true;
@@ -1180,7 +1175,7 @@ bool Tema1::CheckConnectivity() {
         }
     }
 
-    // 3) Check if any content cell was not visited
+    // Check if any cell was not visited
     for (int x = 0; x < gridCols; x++) {
         for (int y = 0; y < gridRows; y++) {
             if (grid[x][y].content != "" && !visited[x][y]) {
@@ -1205,12 +1200,11 @@ void Tema1::UpdateBall(Ball& ball, float dt, float windowWidth, float windowHeig
         RenderMesh2D(meshes["ball"], modelMatrix, glm::vec3(1, 0, 0));
         return;
     }
-    // Move ball
     ball.pos += ball.vel * dt;
 
-    // Check paddle collision
+	// Check paddle collision and block collision
     CheckBallPaddleCollision(ball, paddleVelX);
-    CheckBallBlockCollision(ball); // ADD THIS LINE
+    CheckBallBlockCollision(ball); 
     // Wall collisions
     if (ball.pos.x - ball.radius < 0.0f) {
         ball.pos.x = ball.radius;
@@ -1228,6 +1222,8 @@ void Tema1::UpdateBall(Ball& ball, float dt, float windowWidth, float windowHeig
         lives--;
         if (lives <= 0) {
             //exit(0); // game over
+            printf("GAME OVER, final score:%d\n", score);
+            window->Close();
         }
         else {
             // reset ball to center
@@ -1238,7 +1234,7 @@ void Tema1::UpdateBall(Ball& ball, float dt, float windowWidth, float windowHeig
         
     }
 
-    // Clamp velocity
+    //Clamp velocity
     float speed = glm::length(ball.vel);
     float maxSpeed = 1200.0f;
     if (speed > maxSpeed) {
@@ -1258,8 +1254,6 @@ void Tema1::CheckBallPaddleCollision(Ball& ball, float paddleVelX) {
     float paddleRight = structureOffsetX + width * squareSize;
     float paddleBottom = structureOffsetY;
     float paddleTop = structureOffsetY + height * squareSize;
-
-    // Quick check - if ball is completely outside paddle bounds
     if (ball.pos.x + ball.radius < paddleLeft ||
         ball.pos.x - ball.radius > paddleRight ||
         ball.pos.y + ball.radius < paddleBottom ||
@@ -1356,14 +1350,14 @@ void Tema1::CreateBreakoutGrid() {
 
     // Different color for each block
     std::vector<glm::vec3> colors = {
-        glm::vec3(1.0f, 0.2f, 0.2f),  // red
-        glm::vec3(1.0f, 0.5f, 0.0f),  // orange
-        glm::vec3(1.0f, 0.8f, 0.0f),  // yellow
-        glm::vec3(0.2f, 1.0f, 0.2f),  // green
-        glm::vec3(0.2f, 0.5f, 1.0f),  // blue
-        glm::vec3(0.6f, 0.2f, 1.0f),  // purple
-        glm::vec3(1.0f, 0.2f, 0.8f),  // pink
-        glm::vec3(0.2f, 1.0f, 1.0f),  // cyan
+        glm::vec3(1.0f, 0.2f, 0.2f),  
+        glm::vec3(1.0f, 0.5f, 0.0f),  
+        glm::vec3(1.0f, 0.8f, 0.0f), 
+        glm::vec3(0.2f, 1.0f, 0.2f), 
+        glm::vec3(0.2f, 0.5f, 1.0f),  
+        glm::vec3(0.6f, 0.2f, 1.0f),  
+        glm::vec3(1.0f, 0.2f, 0.8f),  
+        glm::vec3(0.2f, 1.0f, 1.0f),  
     };
 
     for (int row = 0; row < rows; row++) {
@@ -1375,6 +1369,8 @@ void Tema1::CreateBreakoutGrid() {
             block.height = blockHeight;
             block.hits = 2;
             block.color = colors[row % colors.size()];
+            block.scale = 1.0f;
+            block.destroying = false;
             breakoutBlocks.push_back(block);
         }
     }
@@ -1382,30 +1378,38 @@ void Tema1::CreateBreakoutGrid() {
 
 void Tema1::DrawBreakoutBlocks() {
     bool remaining = false;
-    for (const auto& block : breakoutBlocks) {
-        if (block.hits > 0) {
+    for (auto& block : breakoutBlocks) {
+        if (block.hits > 0 || block.destroying) {
+            // Calculate center position for scaling
+            float centerX = block.pos.x + block.width / 2.0f;
+            float centerY = block.pos.y + block.height / 2.0f;
+            
             modelMatrix = glm::mat3(1);
-            modelMatrix *= transform2D::Translate(block.pos.x, block.pos.y);
+            modelMatrix *= transform2D::Translate(centerX, centerY);
+            modelMatrix *= transform2D::Scale(block.scale, block.scale);
+            modelMatrix *= transform2D::Translate(-block.width / 2.0f, -block.height / 2.0f);
             modelMatrix *= transform2D::Scale(block.width, block.height);
             RenderMesh2D(meshes["square"], modelMatrix, block.color);
-            remaining = true;
+            
+            if (block.hits > 0) {
+                remaining = true;
+            }
         }
     }
     if (!remaining) {
         printf("GAME OVER, final score:%d\n", score);
+        exit(0);
     }
 }
 
 void Tema1::CheckBallBlockCollision(Ball& ball) {
     for (auto& block : breakoutBlocks) {
-        if (block.hits <= 0) continue;
+        if (block.hits <= 0 || block.destroying) continue;
 
         float blockLeft = block.pos.x;
         float blockRight = block.pos.x + block.width;
         float blockBottom = block.pos.y;
         float blockTop = block.pos.y + block.height;
-
-        // Quick AABB check
         if (ball.pos.x + ball.radius < blockLeft ||
             ball.pos.x - ball.radius > blockRight ||
             ball.pos.y + ball.radius < blockBottom ||
@@ -1413,41 +1417,34 @@ void Tema1::CheckBallBlockCollision(Ball& ball) {
             continue;
         }
 
-        // Find closest point on block to ball center
         float closestX = glm::clamp(ball.pos.x, blockLeft, blockRight);
         float closestY = glm::clamp(ball.pos.y, blockBottom, blockTop);
 
         float distX = ball.pos.x - closestX;
         float distY = ball.pos.y - closestY;
         float distanceSquared = distX * distX + distY * distY;
-
-        // Check collision
         if (distanceSquared < ball.radius * ball.radius) {
             float distance = sqrt(distanceSquared);
             if (distance > 0.0001f) {
-                // Push ball out
                 float overlap = ball.radius - distance;
                 ball.pos.x += (distX / distance) * overlap;
                 ball.pos.y += (distY / distance) * overlap;
 
-                // Reflect velocity
                 float dotProduct = ball.vel.x * distX + ball.vel.y * distY;
                 ball.vel.x -= 2.0f * dotProduct * distX / (distance * distance);
                 ball.vel.y -= 2.0f * dotProduct * distY / (distance * distance);
-
-                // Damage block
                 block.hits--;
                 if (block.hits == 1) {
-                    // Damaged - change color (darker)
                     block.color = block.color * 0.5f;
                 }
-                // If hits == 0, block won't be drawn anymore
                 else if (block.hits <= 0) {
                     score += 100;
-				}
+                    block.destroying = true;
+                    block.scale = 1.0f;
+                }
             }
 
-            break; // Only collide with one block per frame
+            break; 
         }
     }
 }
