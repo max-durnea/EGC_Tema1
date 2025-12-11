@@ -72,6 +72,7 @@ namespace m1
         
         // Functions to render train components
         void RenderLocomotive(glm::vec3 position, float angle);
+        void RenderWagon(glm::vec3 position, float angle);
         
         // Rail system functions
         void InitializeRailNetwork();
@@ -143,4 +144,4 @@ namespace transform3D
             0, 0, 0, 1
         );
     }
-}   // namespace transform3D}   // namespace transform3D
+}   // namespace transform3D

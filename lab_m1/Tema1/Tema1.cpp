@@ -56,7 +56,7 @@ void Tema1::Init()
     // Initialize train
     train.currentRail = railNetwork[0];  // Start at first rail
     train.progress = 0.0f;
-    train.speed = 5.0f;  // Increased speed: 5 units per second (was 2.0)
+    train.speed = 2.0f;  // Increased speed: 2 units per second
     train.position = train.currentRail->startPosition;
     train.angle = CalculateTrainAngle(train.currentRail->endPosition - train.currentRail->startPosition);
     train.stopped = false;
@@ -365,144 +365,114 @@ void Tema1::RenderLocomotive(glm::vec3 position, float angle)
     }
 }
 
+void Tema1::RenderWagon(glm::vec3 position, float angle)
+{
+    // === WAGON STRUCTURE ===
+    // Simpler than locomotive: just a box on a platform with 4 wheels
+    // Origin (0,0,0) is at the CENTER of each default shape
+    
+    glm::mat4 baseMatrix = glm::mat4(1);
+    baseMatrix = glm::translate(baseMatrix, position);
+    baseMatrix = glm::rotate(baseMatrix, angle, glm::vec3(0, 1, 0));
+    
+    // === DIMENSIONS ===
+    const float WHEEL_RADIUS = 0.25f;
+    const float WHEEL_WIDTH = 0.15f;
+    const float PLATFORM_HEIGHT = 0.1f;
+    const float PLATFORM_WIDTH = 1.2f;
+    const float PLATFORM_LENGTH = 1.6f;
+    const float BODY_WIDTH = 1.0f;
+    const float BODY_HEIGHT = 0.8f;
+    const float BODY_LENGTH = 1.4f;
+    
+    // Calculate vertical positions
+    const float PLATFORM_Y = WHEEL_RADIUS + PLATFORM_HEIGHT/2;  // Platform sits on wheels
+    const float BODY_Y = PLATFORM_Y + PLATFORM_HEIGHT/2 + BODY_HEIGHT/2;  // Body sits on platform
+    
+    // === 1. PLATFORM (base) ===
+    {
+        glm::mat4 modelMatrix = baseMatrix;
+        modelMatrix = glm::translate(modelMatrix, glm::vec3(0, PLATFORM_Y, 0));
+        modelMatrix = glm::scale(modelMatrix, glm::vec3(PLATFORM_WIDTH, PLATFORM_HEIGHT, PLATFORM_LENGTH));
+        RenderMesh(meshes["box"], shaders["VertexColor"], modelMatrix);
+    }
+    
+    // === 2. BODY (cargo box) ===
+    {
+        glm::mat4 modelMatrix = baseMatrix;
+        modelMatrix = glm::translate(modelMatrix, glm::vec3(0, BODY_Y, 0));
+        modelMatrix = glm::scale(modelMatrix, glm::vec3(BODY_WIDTH, BODY_HEIGHT, BODY_LENGTH));
+        RenderMesh(meshes["box"], shaders["VertexColor"], modelMatrix);
+    }
+    
+    // === 3. WHEELS (4 wheels: 2 on each side) ===
+    // Default cylinder: center at (0,0,0), axis along Z
+    // Rotate 90° around Y to make axis along X (sideways)
+    const float WHEEL_SPACING = PLATFORM_LENGTH / 3;  // Front and back
+    float wheelZPositions[] = {
+        -WHEEL_SPACING/2,  // Back wheel
+        WHEEL_SPACING/2    // Front wheel
+    };
+    
+    for (int i = 0; i < 2; i++) {
+        // Left wheel
+        {
+            glm::mat4 modelMatrix = baseMatrix;
+            modelMatrix = glm::translate(modelMatrix, glm::vec3(-PLATFORM_WIDTH/2, WHEEL_RADIUS, wheelZPositions[i]));
+            modelMatrix = glm::rotate(modelMatrix, (float)(M_PI / 2), glm::vec3(0, 1, 0));  // Rotate to align along X
+            modelMatrix = glm::scale(modelMatrix, glm::vec3(WHEEL_RADIUS, WHEEL_RADIUS, WHEEL_WIDTH));
+            RenderMesh(meshes["cylinder"], shaders["VertexColor"], modelMatrix);
+        }
+        
+        // Right wheel (symmetric)
+        {
+            glm::mat4 modelMatrix = baseMatrix;
+            modelMatrix = glm::translate(modelMatrix, glm::vec3(PLATFORM_WIDTH/2, WHEEL_RADIUS, wheelZPositions[i]));
+            modelMatrix = glm::rotate(modelMatrix, (float)(M_PI / 2), glm::vec3(0, 1, 0));  // Rotate to align along X
+            modelMatrix = glm::scale(modelMatrix, glm::vec3(WHEEL_RADIUS, WHEEL_RADIUS, WHEEL_WIDTH));
+            RenderMesh(meshes["cylinder"], shaders["VertexColor"], modelMatrix);
+        }
+    }
+}
+
 // === RAIL SYSTEM IMPLEMENTATION ===
 
 void Tema1::InitializeRailNetwork()
 {
-    // Create a complex rail network with many junctions
-    // Network layout (top view) - expanded with many more segments:
+    // Create a simple rail network with junctions
+    // Network layout (top view):
     //
-    //                    [20]---[21]
-    //                    /
-    //        [16]---[17]---[18]---[19]
-    //        /                    \
-    //   [14]---[15]               [22]---[23]
-    //   /
-    // [0]---[1]---[2]---[3]---[4]---[5]
-    //            \            /     \
-    //             [6]---[7]---[8]   [9]---[10]
-    //                  \            /
-    //                   [11]---[12]---[13]
-    //                        \
-    //                         [24]---[25]
+    //      [3]---[4]
+    //      /
+    // [0]---[1]---[2]
+    //            \
+    //             [5]---[6]
     
-    // Main horizontal line (spine of the network)
-    Rail* rail0 = new Rail(glm::vec3(-15, 0, 0), glm::vec3(-12, 0, 0));
-    Rail* rail1 = new Rail(glm::vec3(-12, 0, 0), glm::vec3(-9, 0, 0));
-    Rail* rail2 = new Rail(glm::vec3(-9, 0, 0), glm::vec3(-6, 0, 0));
-    Rail* rail3 = new Rail(glm::vec3(-6, 0, 0), glm::vec3(-3, 0, 0));
-    Rail* rail4 = new Rail(glm::vec3(-3, 0, 0), glm::vec3(0, 0, 0));
-    Rail* rail5 = new Rail(glm::vec3(0, 0, 0), glm::vec3(3, 0, 0));
+    // Create rail segments
+    Rail* rail0 = new Rail(glm::vec3(-10, 0, 0), glm::vec3(-5, 0, 0));    // Start segment
+    Rail* rail1 = new Rail(glm::vec3(-5, 0, 0), glm::vec3(0, 0, 0));      // Approach junction 1
+    Rail* rail2 = new Rail(glm::vec3(0, 0, 0), glm::vec3(5, 0, 0));       // Junction 1 -> straight
+    Rail* rail3 = new Rail(glm::vec3(0, 0, 0), glm::vec3(-2, 0, 5));      // Junction 1 -> left
+    Rail* rail4 = new Rail(glm::vec3(-2, 0, 5), glm::vec3(-5, 0, 10));    // Left path end
+    Rail* rail5 = new Rail(glm::vec3(5, 0, 0), glm::vec3(7, 0, -5));      // Junction 2 -> right
+    Rail* rail6 = new Rail(glm::vec3(7, 0, -5), glm::vec3(10, 0, -10));   // Right path end
     
-    // South branch from rail2
-    Rail* rail6 = new Rail(glm::vec3(-9, 0, 0), glm::vec3(-7, 0, -4));
-    Rail* rail7 = new Rail(glm::vec3(-7, 0, -4), glm::vec3(-4, 0, -4));
-    Rail* rail8 = new Rail(glm::vec3(-4, 0, -4), glm::vec3(-1, 0, -2));
-    
-    // South extension
-    Rail* rail9 = new Rail(glm::vec3(0, 0, 0), glm::vec3(2, 0, -3));
-    Rail* rail10 = new Rail(glm::vec3(2, 0, -3), glm::vec3(4, 0, -6));
-    
-    // Deep south branch
-    Rail* rail11 = new Rail(glm::vec3(-4, 0, -4), glm::vec3(-3, 0, -7));
-    Rail* rail12 = new Rail(glm::vec3(-3, 0, -7), glm::vec3(0, 0, -8));
-    Rail* rail13 = new Rail(glm::vec3(0, 0, -8), glm::vec3(3, 0, -6));
-    
-    // North branch from rail0
-    Rail* rail14 = new Rail(glm::vec3(-15, 0, 0), glm::vec3(-14, 0, 3));
-    Rail* rail15 = new Rail(glm::vec3(-14, 0, 3), glm::vec3(-11, 0, 4));
-    
-    // North extension
-    Rail* rail16 = new Rail(glm::vec3(-11, 0, 4), glm::vec3(-8, 0, 5));
-    Rail* rail17 = new Rail(glm::vec3(-8, 0, 5), glm::vec3(-5, 0, 6));
-    Rail* rail18 = new Rail(glm::vec3(-5, 0, 6), glm::vec3(-2, 0, 6));
-    Rail* rail19 = new Rail(glm::vec3(-2, 0, 6), glm::vec3(1, 0, 5));
-    
-    // Far north branch
-    Rail* rail20 = new Rail(glm::vec3(-5, 0, 6), glm::vec3(-4, 0, 9));
-    Rail* rail21 = new Rail(glm::vec3(-4, 0, 9), glm::vec3(-1, 0, 11));
-    
-    // East connections
-    Rail* rail22 = new Rail(glm::vec3(1, 0, 5), glm::vec3(3, 0, 3));
-    Rail* rail23 = new Rail(glm::vec3(3, 0, 3), glm::vec3(5, 0, 1));
-    
-    // South deep extension
-    Rail* rail24 = new Rail(glm::vec3(0, 0, -8), glm::vec3(1, 0, -11));
-    Rail* rail25 = new Rail(glm::vec3(1, 0, -11), glm::vec3(3, 0, -13));
-    
-    // Connect rails to build the complex network
+    // Connect rails (build the network tree)
     rail0->children.push_back(rail1);
-    rail0->children.push_back(rail14);  // Junction: straight or north
     
+    // Junction 1: can go straight (rail2) or left (rail3)
     rail1->children.push_back(rail2);
+    rail1->children.push_back(rail3);
     
-    rail2->children.push_back(rail3);
-    rail2->children.push_back(rail6);  // Junction: straight or south
+    // After straight path, another junction
+    rail2->children.push_back(rail5);
+    rail2->children.push_back(rail0);  // Loop back to start
     
+    // Left path leads to end
     rail3->children.push_back(rail4);
     
-    rail4->children.push_back(rail5);
-    rail4->children.push_back(rail8);  // Junction: merge from south
-    rail4->children.push_back(rail9);  // Junction: can go south-east
-    
-    rail5->children.push_back(rail0);  // Loop back to start
-    rail5->children.push_back(rail23); // Or continue east
-    
-    // South branch connections
-    rail6->children.push_back(rail7);
-    
-    rail7->children.push_back(rail8);
-    rail7->children.push_back(rail11);  // Junction: continue or go deeper south
-    
-    rail8->children.push_back(rail4);  // Merge back to main line
-    
-    rail9->children.push_back(rail10);
-    rail9->children.push_back(rail13);  // Junction: continue or merge from deep south
-    
-    rail10->children.push_back(rail13);
-    
-    // Deep south connections
-    rail11->children.push_back(rail12);
-    
-    rail12->children.push_back(rail13);
-    rail12->children.push_back(rail24);  // Junction: continue or go even deeper
-    
-    rail13->children.push_back(rail9);   // Loop back
-    rail13->children.push_back(rail10);  // Junction: multiple options
-    
-    // North branch connections
-    rail14->children.push_back(rail15);
-    
-    rail15->children.push_back(rail16);
-    rail15->children.push_back(rail1);   // Junction: continue north or back to main
-    
-    rail16->children.push_back(rail17);
-    
-    rail17->children.push_back(rail18);
-    rail17->children.push_back(rail20);  // Junction: straight or far north
-    
-    rail18->children.push_back(rail19);
-    rail18->children.push_back(rail20);  // Junction: continue or branch
-    
-    rail19->children.push_back(rail22);
-    rail19->children.push_back(rail5);   // Junction: east or back to main
-    
-    rail20->children.push_back(rail21);
-    
-    rail21->children.push_back(rail20);  // Can loop
-    rail21->children.push_back(rail19);  // Or go back
-    
-    // East connections
-    rail22->children.push_back(rail23);
-    
-    rail23->children.push_back(rail5);   // Back to main line
-    rail23->children.push_back(rail10);  // Junction: or go south
-    
-    // Deep south extension
-    rail24->children.push_back(rail25);
-    
-    rail25->children.push_back(rail24);  // Can turn around
-    rail25->children.push_back(rail12);  // Or go back up
+    // Right path leads to end
+    rail5->children.push_back(rail6);
     
     // Store all rails in network
     railNetwork.push_back(rail0);
@@ -512,27 +482,8 @@ void Tema1::InitializeRailNetwork()
     railNetwork.push_back(rail4);
     railNetwork.push_back(rail5);
     railNetwork.push_back(rail6);
-    railNetwork.push_back(rail7);
-    railNetwork.push_back(rail8);
-    railNetwork.push_back(rail9);
-    railNetwork.push_back(rail10);
-    railNetwork.push_back(rail11);
-    railNetwork.push_back(rail12);
-    railNetwork.push_back(rail13);
-    railNetwork.push_back(rail14);
-    railNetwork.push_back(rail15);
-    railNetwork.push_back(rail16);
-    railNetwork.push_back(rail17);
-    railNetwork.push_back(rail18);
-    railNetwork.push_back(rail19);
-    railNetwork.push_back(rail20);
-    railNetwork.push_back(rail21);
-    railNetwork.push_back(rail22);
-    railNetwork.push_back(rail23);
-    railNetwork.push_back(rail24);
-    railNetwork.push_back(rail25);
     
-    std::cout << "Complex rail network initialized with " << railNetwork.size() << " segments" << std::endl;
+    std::cout << "Rail network initialized with " << railNetwork.size() << " segments" << std::endl;
     std::cout << "Controls: Arrow keys (LEFT/RIGHT/UP) to choose direction at junctions" << std::endl;
 }
 
