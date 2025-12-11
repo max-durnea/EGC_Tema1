@@ -29,26 +29,44 @@ void Tema1::Init()
     // Enable camera input so you can move around
     GetCameraInput()->SetActive(true);
 
-    // Create a big green plane for the train terrain (100x100 units)
-    {
-        std::vector<VertexFormat> vertices = {
-            VertexFormat(glm::vec3(-50, 0, -50), glm::vec3(0.2f, 0.8f, 0.2f), glm::vec3(0, 1, 0), glm::vec2(0, 0)),
-            VertexFormat(glm::vec3( 50, 0, -50), glm::vec3(0.2f, 0.8f, 0.2f), glm::vec3(0, 1, 0), glm::vec2(1, 0)),
-            VertexFormat(glm::vec3( 50, 0,  50), glm::vec3(0.2f, 0.8f, 0.2f), glm::vec3(0, 1, 0), glm::vec2(1, 1)),
-            VertexFormat(glm::vec3(-50, 0,  50), glm::vec3(0.2f, 0.8f, 0.2f), glm::vec3(0, 1, 0), glm::vec2(0, 1))
-        };
-
-        std::vector<unsigned int> indices = {
-            0, 1, 2,
-            0, 2, 3
-        };
-
-        CreateMesh("plane", vertices, indices);
-    }
+    // Create terrain with different reliefs (colored quads)
+    // Green = Plains (Normal rails)
+    // Blue = Water/River (Bridge rails)
+    // Brown = Mountains (Tunnel rails)
+    
+    // Green plains (center and most of the map)
+    CreateTerrainQuad("terrain_green_1", glm::vec3(-20, 0, -20), glm::vec3(20, 0, -20), 
+                      glm::vec3(20, 0, 20), glm::vec3(-20, 0, 20), glm::vec3(0.2f, 0.8f, 0.2f));
+    
+    // Blue water/river (horizontal strip)
+    CreateTerrainQuad("terrain_blue_1", glm::vec3(-20, 0, -8), glm::vec3(20, 0, -8), 
+                      glm::vec3(20, 0, -4), glm::vec3(-20, 0, -4), glm::vec3(0.2f, 0.4f, 0.8f));
+    
+    // Brown mountains (left side)
+    CreateTerrainQuad("terrain_brown_1", glm::vec3(-20, 0, 4), glm::vec3(-10, 0, 4), 
+                      glm::vec3(-10, 0, 12), glm::vec3(-20, 0, 12), glm::vec3(0.6f, 0.4f, 0.2f));
+    
+    // Additional terrain areas
+    CreateTerrainQuad("terrain_green_2", glm::vec3(-20, 0, -20), glm::vec3(20, 0, -20), 
+                      glm::vec3(20, 0, -8), glm::vec3(-20, 0, -8), glm::vec3(0.2f, 0.8f, 0.2f));
+    
+    CreateTerrainQuad("terrain_green_3", glm::vec3(-20, 0, -4), glm::vec3(20, 0, -4), 
+                      glm::vec3(20, 0, 4), glm::vec3(-20, 0, 4), glm::vec3(0.2f, 0.8f, 0.2f));
+    
+    CreateTerrainQuad("terrain_green_4", glm::vec3(-10, 0, 4), glm::vec3(20, 0, 4), 
+                      glm::vec3(20, 0, 12), glm::vec3(-10, 0, 12), glm::vec3(0.2f, 0.8f, 0.2f));
+    
+    CreateTerrainQuad("terrain_green_5", glm::vec3(-20, 0, 12), glm::vec3(20, 0, 12), 
+                      glm::vec3(20, 0, 20), glm::vec3(-20, 0, 20), glm::vec3(0.2f, 0.8f, 0.2f));
 
     // Create geometric shapes for train components
     CreateBox("box", glm::vec3(0.8f, 0.4f, 0.2f));  // Orange-brown color for boxes
     CreateCylinder("cylinder", glm::vec3(0.3f, 0.3f, 0.3f));  // Dark gray for wheels/cylinders
+    
+    // Create station shapes (3 different stations)
+    CreateBox("station_cube", glm::vec3(0.9f, 0.9f, 0.1f));  // Yellow-ish cube station
+    CreateCylinder("station_cylinder", glm::vec3(0.8f, 0.1f, 0.1f));  // Red-ish cylinder station
+    CreatePyramid("station_pyramid", glm::vec3(0.1f, 0.8f, 0.8f));  // Cyan-ish pyramid station
     
     // Initialize the rail network
     InitializeRailNetwork();
@@ -56,7 +74,7 @@ void Tema1::Init()
     // Initialize train
     train.currentRail = railNetwork[0];  // Start at first rail
     train.progress = 0.0f;
-    train.speed = 2.0f;  // Increased speed: 2 units per second
+    train.speed = 2.0f;  // Default speed: 2 units per second
     train.position = train.currentRail->startPosition;
     train.angle = CalculateTrainAngle(train.currentRail->endPosition - train.currentRail->startPosition);
     train.stopped = false;
@@ -74,11 +92,22 @@ void Tema1::Update(float deltaTimeSeconds) {
     // Update train movement
     UpdateTrainMovement(deltaTimeSeconds);
     
-    // Render the big green plane (terrain for the train game)
-    RenderMesh(meshes["plane"], shaders["VertexColor"], glm::vec3(0, 0, 0), glm::vec3(1));
+    // Render terrain (different colored areas)
+    RenderMesh(meshes["terrain_green_1"], shaders["VertexColor"], glm::vec3(0, 0, 0), glm::vec3(1));
+    RenderMesh(meshes["terrain_blue_1"], shaders["VertexColor"], glm::vec3(0, 0, 0), glm::vec3(1));
+    RenderMesh(meshes["terrain_brown_1"], shaders["VertexColor"], glm::vec3(0, 0, 0), glm::vec3(1));
+    RenderMesh(meshes["terrain_green_2"], shaders["VertexColor"], glm::vec3(0, 0, 0), glm::vec3(1));
+    RenderMesh(meshes["terrain_green_3"], shaders["VertexColor"], glm::vec3(0, 0, 0), glm::vec3(1));
+    RenderMesh(meshes["terrain_green_4"], shaders["VertexColor"], glm::vec3(0, 0, 0), glm::vec3(1));
+    RenderMesh(meshes["terrain_green_5"], shaders["VertexColor"], glm::vec3(0, 0, 0), glm::vec3(1));
 
-    // Render rails
+    // Render rails with different types
     RenderRails();
+    
+    // Render stations (3 different types at different locations)
+    RenderStation(glm::vec3(-10, 0, 0), 0, "cube");      // Station 1: Cube at start
+    RenderStation(glm::vec3(0, 0, 0), 0, "cylinder");    // Station 2: Cylinder at junction
+    RenderStation(glm::vec3(10, 0, -10), 0, "pyramid");  // Station 3: Pyramid at end
 
     // Render locomotive at train position (no wagon)
     RenderLocomotive(train.position, train.angle);
@@ -280,6 +309,51 @@ void Tema1::CreateCylinder(const char* name, glm::vec3 color, int segments)
     CreateMesh(name, vertices, indices);
 }
 
+void Tema1::CreatePyramid(const char* name, glm::vec3 color)
+{
+    std::vector<VertexFormat> vertices = {
+        // Base (square)
+        VertexFormat(glm::vec3(-0.5f, 0, -0.5f), color, glm::vec3(0, -1, 0), glm::vec2(0, 0)),
+        VertexFormat(glm::vec3( 0.5f, 0, -0.5f), color, glm::vec3(0, -1, 0), glm::vec2(1, 0)),
+        VertexFormat(glm::vec3( 0.5f, 0,  0.5f), color, glm::vec3(0, -1, 0), glm::vec2(1, 1)),
+        VertexFormat(glm::vec3(-0.5f, 0,  0.5f), color, glm::vec3(0, -1, 0), glm::vec2(0, 1)),
+        
+        // Apex
+        VertexFormat(glm::vec3(0, 1, 0), color, glm::vec3(0, 1, 0), glm::vec2(0.5f, 0.5f)),
+    };
+    
+    std::vector<unsigned int> indices = {
+        // Base
+        0, 1, 2,
+        0, 2, 3,
+        
+        // Side faces
+        0, 1, 4,  // Front face
+        1, 2, 4,  // Right face
+        2, 3, 4,  // Back face
+        3, 0, 4   // Left face
+    };
+    
+    CreateMesh(name, vertices, indices);
+}
+
+void Tema1::CreateTerrainQuad(const char* name, glm::vec3 p1, glm::vec3 p2, glm::vec3 p3, glm::vec3 p4, glm::vec3 color)
+{
+    std::vector<VertexFormat> vertices = {
+        VertexFormat(p1, color, glm::vec3(0, 1, 0), glm::vec2(0, 0)),
+        VertexFormat(p2, color, glm::vec3(0, 1, 0), glm::vec2(1, 0)),
+        VertexFormat(p3, color, glm::vec3(0, 1, 0), glm::vec2(1, 1)),
+        VertexFormat(p4, color, glm::vec3(0, 1, 0), glm::vec2(0, 1))
+    };
+    
+    std::vector<unsigned int> indices = {
+        0, 1, 2,
+        0, 2, 3
+    };
+    
+    CreateMesh(name, vertices, indices);
+}
+
 void Tema1::RenderLocomotive(glm::vec3 position, float angle)
 {
     // === LOCOMOTIVE STRUCTURE ===
@@ -435,6 +509,119 @@ void Tema1::RenderWagon(glm::vec3 position, float angle)
     }
 }
 
+void Tema1::RenderStation(glm::vec3 position, float angle, const std::string& type)
+{
+    // Render different types of stations
+    glm::mat4 modelMatrix = glm::mat4(1);
+    modelMatrix = glm::translate(modelMatrix, position + glm::vec3(0, 0.5f, 0));  // Lift above ground
+    modelMatrix = glm::rotate(modelMatrix, angle, glm::vec3(0, 1, 0));
+    
+    if (type == "cube") {
+        // Cube station - large yellow-ish box
+        modelMatrix = glm::scale(modelMatrix, glm::vec3(1.5f, 1.5f, 1.5f));
+        RenderMesh(meshes["station_cube"], shaders["VertexColor"], modelMatrix);
+    }
+    else if (type == "cylinder") {
+        // Cylinder station - tall red-ish cylinder
+        modelMatrix = glm::scale(modelMatrix, glm::vec3(1.0f, 2.0f, 1.0f));
+        RenderMesh(meshes["station_cylinder"], shaders["VertexColor"], modelMatrix);
+    }
+    else if (type == "pyramid") {
+        // Pyramid station - cyan-ish pyramid
+        modelMatrix = glm::scale(modelMatrix, glm::vec3(1.5f, 1.5f, 1.5f));
+        RenderMesh(meshes["station_pyramid"], shaders["VertexColor"], modelMatrix);
+    }
+}
+
+void Tema1::RenderRails()
+{
+    // Render all rail segments with different types based on terrain
+    for (Rail* rail : railNetwork) {
+        glm::vec3 start = rail->startPosition;
+        glm::vec3 end = rail->endPosition;
+        glm::vec3 midpoint = (start + end) / 2.0f;
+        
+        // Calculate rail properties
+        glm::vec3 direction = end - start;
+        float length = glm::length(direction);
+        float angle = atan2(direction.x, direction.z);
+        
+        // Determine rail type based on Z coordinate (terrain type)
+        std::string railType = "normal";
+        if (midpoint.z >= -8 && midpoint.z <= -4) {
+            railType = "bridge";  // Blue water area
+        } else if (midpoint.x <= -10 && midpoint.z >= 4 && midpoint.z <= 12) {
+            railType = "tunnel";  // Brown mountain area
+        }
+        
+        if (railType == "normal") {
+            // Normal rail: single black box
+            glm::mat4 modelMatrix = glm::mat4(1);
+            modelMatrix = glm::translate(modelMatrix, midpoint + glm::vec3(0, 0.05f, 0));
+            modelMatrix = glm::rotate(modelMatrix, angle, glm::vec3(0, 1, 0));
+            modelMatrix = glm::scale(modelMatrix, glm::vec3(0.2f, 0.05f, length));
+            
+            CreateBox("rail_normal", glm::vec3(0.1f, 0.1f, 0.1f));  // Dark gray/black
+            RenderMesh(meshes["rail_normal"], shaders["VertexColor"], modelMatrix);
+        }
+        else if (railType == "bridge") {
+            // Bridge rail: 4 longitudinal colored stripes
+            glm::vec3 colors[4] = {
+                glm::vec3(0.8f, 0.6f, 0.4f),  // Light brown
+                glm::vec3(0.6f, 0.4f, 0.2f),  // Medium brown
+                glm::vec3(0.8f, 0.6f, 0.4f),  // Light brown
+                glm::vec3(0.6f, 0.4f, 0.2f)   // Medium brown
+            };
+            
+            float stripeWidth = 0.05f;
+            for (int i = 0; i < 4; i++) {
+                glm::mat4 modelMatrix = glm::mat4(1);
+                float offsetX = (i - 1.5f) * stripeWidth;
+                modelMatrix = glm::translate(modelMatrix, midpoint + glm::vec3(0, 0.05f, 0));
+                modelMatrix = glm::rotate(modelMatrix, angle, glm::vec3(0, 1, 0));
+                modelMatrix = glm::translate(modelMatrix, glm::vec3(offsetX, 0, 0));
+                modelMatrix = glm::scale(modelMatrix, glm::vec3(stripeWidth, 0.05f, length));
+                
+                std::string meshName = "rail_bridge_" + std::to_string(i);
+                CreateBox(meshName.c_str(), colors[i]);
+                RenderMesh(meshes[meshName], shaders["VertexColor"], modelMatrix);
+            }
+        }
+        else if (railType == "tunnel") {
+            // Tunnel rail: 4 transversal colored stripes
+            glm::vec3 colors[4] = {
+                glm::vec3(0.5f, 0.5f, 0.5f),  // Light gray
+                glm::vec3(0.3f, 0.3f, 0.3f),  // Dark gray
+                glm::vec3(0.5f, 0.5f, 0.5f),  // Light gray
+                glm::vec3(0.3f, 0.3f, 0.3f)   // Dark gray
+            };
+            
+            float stripeLength = length / 4.0f;
+            for (int i = 0; i < 4; i++) {
+                glm::mat4 modelMatrix = glm::mat4(1);
+                float offsetZ = (i - 1.5f) * stripeLength;
+                modelMatrix = glm::translate(modelMatrix, midpoint + glm::vec3(0, 0.05f, 0));
+                modelMatrix = glm::rotate(modelMatrix, angle, glm::vec3(0, 1, 0));
+                modelMatrix = glm::translate(modelMatrix, glm::vec3(0, 0, offsetZ));
+                modelMatrix = glm::scale(modelMatrix, glm::vec3(0.2f, 0.05f, stripeLength));
+                
+                std::string meshName = "rail_tunnel_" + std::to_string(i);
+                CreateBox(meshName.c_str(), colors[i]);
+                RenderMesh(meshes[meshName], shaders["VertexColor"], modelMatrix);
+            }
+        }
+        
+        // Mark junctions in red
+        if (rail->isJunction()) {
+            glm::mat4 junctionMarker = glm::mat4(1);
+            junctionMarker = glm::translate(junctionMarker, end + glm::vec3(0, 0.2f, 0));
+            junctionMarker = glm::scale(junctionMarker, glm::vec3(0.3f, 0.3f, 0.3f));
+            CreateBox("junction_marker", glm::vec3(1, 0, 0));  // Red marker
+            RenderMesh(meshes["junction_marker"], shaders["VertexColor"], junctionMarker);
+        }
+    }
+}
+
 // === RAIL SYSTEM IMPLEMENTATION ===
 
 void Tema1::InitializeRailNetwork()
@@ -454,7 +641,7 @@ void Tema1::InitializeRailNetwork()
     Rail* rail2 = new Rail(glm::vec3(0, 0, 0), glm::vec3(5, 0, 0));       // Junction 1 -> straight
     Rail* rail3 = new Rail(glm::vec3(0, 0, 0), glm::vec3(-2, 0, 5));      // Junction 1 -> left
     Rail* rail4 = new Rail(glm::vec3(-2, 0, 5), glm::vec3(-5, 0, 10));    // Left path end
-    Rail* rail5 = new Rail(glm::vec3(5, 0, 0), glm::vec3(7, 0, -5));      // Junction 2 -> right
+    Rail* rail5 = new Rail(glm::vec3(5, 0, 0), glm::vec3(7, 0, -5));      // Junction 2 -> right (goes over bridge)
     Rail* rail6 = new Rail(glm::vec3(7, 0, -5), glm::vec3(10, 0, -10));   // Right path end
     
     // Connect rails (build the network tree)
@@ -538,35 +725,6 @@ void Tema1::UpdateTrainMovement(float deltaTime)
     // Calculate train angle based on direction
     glm::vec3 direction = end - start;
     train.angle = CalculateTrainAngle(direction);
-}
-
-void Tema1::RenderRails()
-{
-    // Render all rail segments as lines/boxes
-    for (Rail* rail : railNetwork) {
-        glm::vec3 start = rail->startPosition;
-        glm::vec3 end = rail->endPosition;
-        glm::vec3 midpoint = (start + end) / 2.0f;
-        
-        // Calculate rail properties
-        glm::vec3 direction = end - start;
-        float length = glm::length(direction);
-        float angle = atan2(direction.x, direction.z);
-        
-        // Render rail as a thin elongated box
-        glm::mat4 modelMatrix = glm::mat4(1);
-        modelMatrix = glm::translate(modelMatrix, midpoint + glm::vec3(0, 0.05f, 0));  // Slightly above ground
-        modelMatrix = glm::rotate(modelMatrix, angle, glm::vec3(0, 1, 0));
-        modelMatrix = glm::scale(modelMatrix, glm::vec3(0.1f, 0.05f, length));
-        
-        // Color: red if it's a junction, gray otherwise
-        glm::vec3 railColor = rail->isJunction() ? glm::vec3(1, 0, 0) : glm::vec3(0.5f, 0.5f, 0.5f);
-        
-        // Temporarily create a colored box for this rail
-        // (In a real implementation, you'd want to cache these meshes)
-        CreateBox("rail_temp", railColor);
-        RenderMesh(meshes["rail_temp"], shaders["VertexColor"], modelMatrix);
-    }
 }
 
 void Tema1::HandleJunctionInput(int key)

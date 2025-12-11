@@ -69,10 +69,13 @@ namespace m1
         // Helper functions to create geometric shapes
         void CreateBox(const char* name, glm::vec3 color);
         void CreateCylinder(const char* name, glm::vec3 color, int segments = 20);
+        void CreatePyramid(const char* name, glm::vec3 color);
+        void CreateTerrainQuad(const char* name, glm::vec3 p1, glm::vec3 p2, glm::vec3 p3, glm::vec3 p4, glm::vec3 color);
         
         // Functions to render train components
         void RenderLocomotive(glm::vec3 position, float angle);
-        void RenderWagon(glm::vec3 position, float angle);
+        void RenderWagon(glm::vec3 position, float angle);  // Not currently used
+        void RenderStation(glm::vec3 position, float angle, const std::string& type);
         
         // Rail system functions
         void InitializeRailNetwork();
