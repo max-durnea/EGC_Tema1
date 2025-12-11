@@ -37,6 +37,12 @@ namespace m1
         float materialKs;
 
         // TODO(student): If you need any other class variables, define them here.
+        bool isSpotlight;
+        float cutoffAngle;
+        
+        glm::vec3 lightColor1;
+        glm::vec3 lightPosition2;
+        glm::vec3 lightColor2;
 
     };
 }   // namespace m1

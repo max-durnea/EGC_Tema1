@@ -5,48 +5,43 @@
 #include "utils/glm_utils.h"
 #include "lab_m1/Tema1/text_renderer.h"
 #include <queue>
+
 namespace m1
 {
-    struct BreakoutBlock {
-        glm::vec2 pos;      // top-left corner position
-        float width;
-        float height;
-        int hits;           
-        glm::vec3 color;    
-        float scale;        
-        bool destroying;    
+    // === RAIL SYSTEM STRUCTURES ===
+    
+    // Rail segment - represents a piece of track between two points
+    struct Rail {
+        glm::vec3 startPosition;
+        glm::vec3 endPosition;
+        std::vector<Rail*> children;  // For junctions (0, 1, or multiple children)
+        
+        Rail(glm::vec3 start, glm::vec3 end) 
+            : startPosition(start), endPosition(end) {}
+        
+        // Check if this is a junction (has multiple children)
+        bool isJunction() const { return children.size() > 1; }
+        
+        // Get next rail (single child or first child)
+        Rail* getNext() const { 
+            return children.empty() ? nullptr : children[0]; 
+        }
     };
-    struct Cell {
-        glm::vec2 pos;
-        float size;
-        bool highlighted;
-        bool pivot=false;
-        glm::vec3 color = glm::vec3(1, 1, 1);
-        std::string content = ""; // "bumper", "block"
+    
+    // Train - moves along rails with interpolation
+    struct Train {
+        Rail* currentRail;           // Current rail segment
+        float progress;              // Progress along current rail (0.0 to 1.0)
+        float speed;                 // Movement speed (units per second)
+        glm::vec3 position;          // Current 3D position
+        float angle;                 // Current rotation angle (for direction)
+        bool stopped;                // Is train stopped at junction?
+        int selectedDirection;       // Which direction to take at junction (-1 = none)
+        
+        Train() : currentRail(nullptr), progress(0.0f), speed(1.0f), 
+                  position(0, 0, 0), angle(0), stopped(false), selectedDirection(-1) {}
     };
-    struct PanelSlot {
-        bool highlighted;
-        glm::vec3 color;
-    };
-    struct PlacedBumper {
-        int gridX; 
-        int gridY; 
-        glm::vec3 color;
-    };
-    struct PlacedBlock {
-        int gridX;
-        int gridY;
-        glm::vec3 color;
-    };
-    struct Slot {
-        bool draw;
-	};
-
-    struct Ball {
-        glm::vec2 pos;   
-        glm::vec2 vel;   
-        float radius;    
-    };
+    
     class Tema1 : public gfxc::SimpleScene
     {
     public:
@@ -68,128 +63,84 @@ namespace m1
         void OnMouseBtnRelease(int mouseX, int mouseY, int button, int mods) override;
         void OnMouseScroll(int mouseX, int mouseY, int offsetX, int offsetY) override;
         void OnWindowResize(int width, int height) override;
+        
         void CreateMesh(const char* name, const std::vector<VertexFormat>& vertices, const std::vector<unsigned int>& indices);
-        void DrawGrid();
-        void CheckSquareClick(int mouseX, int mouseY, int button, int mods);
-        void CreateBumperSemicircle();
-        void CreateBumperSquare();
-        void DrawBumper(int x, int y);
-        void DrawLeftPanel();
-        void CreateSquareAndFrame();
-        bool TryPlaceBumper(int centerCol, int row);
-        bool TryRemoveBumper(int centerCol, int row); 
-        void DrawPlacedBumpers();
-        void CreateBlock();
-        void CreateCannon();
-        void CreateMotor();
-        void DrawBlock(int x, int y);
-        void DrawCannon(int x, int y);
-        void DrawMotor(int x, int y);
-        bool TryPlaceBlock(int i, int j);
-        void DrawPlacedBlocks();
-        bool TryRemoveBlock(int i, int j);
-        void SwitchToPlayMode();
-        bool isPlayMode = false;
-        //float structureOffsetY = 0.0f; 
-        //float structureSpeed = 300.0f;  
-        int mouseYPos;
-        int mouseXPos;
-        glm::mat3 modelMatrix;
-        int squareSize = 50;
-        int squareSizeG = squareSize / 2;
-        int gridCols = 17;
-        int gridRows = 9;
-        int offsetGridX = 350;
-        int offsetGridY = 50;
-        //int frameThickness = 5;
-        int frameSize = squareSize;
-        int padding = 5;
-        float frameHeight = gridCols * squareSize + padding;
-        float frameWidth = gridRows * squareSize + padding;
-        std::vector<std::vector<Cell>> grid;
-        std::vector<PlacedBumper> placedBumpers;
-        std::vector<PlacedBlock> placedBlocks;
-        PanelSlot leftPanelSlots[4];
-        bool isDragging = false;
-        std::string draggedShape = "";
-        //StartPlaing
-        int minX, maxX, minY, maxY;
-        std::vector<std::vector<Cell>> miniGrid;
-        void FindBoundaries();
-        void CopyRectangle();
-        void DrawMiniGrid();
-        void DrawBlockPlayer(int x, int y, glm::vec3 color);
-        void DrawBumperPlayer(int x, int y, glm::vec3 color1, glm::vec3 color2);
-        int width, height;
-        float structureOffsetX = 0.0f;
-        float structureOffsetY = 0.0f;
-        float prevStructureOffsetX = 0.0f; // initialize at start
-        float paddleVelX;
-        //upper pannel
-        void CreateStartButton();
-        void DrawStartButton(int x, int y);
-        float paddingPanel = 10.0f;
-        float buttonSize = squareSize+squareSize/4;
-        void DrawSlot(int x, int y, glm::vec3 color);
-        void CreateSlot();
-        int numSlots = 10;
-        std::vector<Slot> slots;
-        int availableSlots;
-        // conditions
-        bool CheckPlacementRules();
-		glm::vec3 startButtonColor = glm::vec3(0, 1, 0);
-        bool canPlay = false;
-        bool CheckConnectivity();
-        void DebugPrintGrid();
-        // ball
-        void CreateBallMesh(const char* name, float radius, int segments);
-        void UpdateBall(Ball& ball, float dt, float windowWidth, float windowHeight);
-        void CheckBallPaddleCollision(Ball& ball, float paddleVelX);
-		std::vector<Ball> balls;
-		bool ballLaunched = false;
-        bool isBreakoutMode = false;
-        // breakout blocks
-        std::vector<BreakoutBlock> breakoutBlocks;
-        void CreateBreakoutGrid();
-        void DrawBreakoutBlocks();
-        void CheckBallBlockCollision(Ball& ball);
-        // lives and score
-        int score = 0;
-        int lives = 3;
-        bool stuckBall=true;
-        void CreateHeart(const char* name, glm::vec3 color);
-        // Text
-        gfxc::TextRenderer* textRenderer;
-        float initX = 1280.0f;
-        float initY = 720.0f;
+        
+        // Helper functions to create geometric shapes
+        void CreateBox(const char* name, glm::vec3 color);
+        void CreateCylinder(const char* name, glm::vec3 color, int segments = 20);
+        
+        // Functions to render train components
+        void RenderLocomotive(glm::vec3 position, float angle);
+        
+        // Rail system functions
+        void InitializeRailNetwork();
+        void UpdateTrainMovement(float deltaTime);
+        void RenderRails();
+        void HandleJunctionInput(int key);
+        float CalculateTrainAngle(glm::vec3 direction);
+        
+        // Train and rail data
+        Train train;
+        std::vector<Rail*> railNetwork;  // All rail segments
     };
 };   // namespace m1
 
 
-namespace transform2D
+namespace transform3D
 {
     // Translate matrix
-    inline glm::mat3 Translate(float translateX, float translateY)
+    inline glm::mat4 Translate(float translateX, float translateY, float translateZ)
     {
-        // TODO(student): Implement the translation matrix
-        return glm::mat3(1, 0, 0,
-            0, 1, 0, translateX, translateY, 1);
-
+        return glm::mat4(
+            1, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            translateX, translateY, translateZ, 1
+        );
     }
 
     // Scale matrix
-    inline glm::mat3 Scale(float scaleX, float scaleY)
+    inline glm::mat4 Scale(float scaleX, float scaleY, float scaleZ)
     {
-        // TODO(student): Implement the scaling matrix
-        return glm::mat3(scaleX, 0, 0, 0, scaleY, 0, 0, 0, 1);
-
+        return glm::mat4(
+            scaleX, 0, 0, 0,
+            0, scaleY, 0, 0,
+            0, 0, scaleZ, 0,
+            0, 0, 0, 1
+        );
     }
 
-    // Rotate matrix
-    inline glm::mat3 Rotate(float radians)
+    // Rotate matrix around X axis
+    inline glm::mat4 RotateOX(float radians)
     {
-        // TODO(student): Implement the rotation matrix
-        return glm::mat3(cos(radians), -sin(radians), 0, sin(radians), cos(radians), 0, 0, 0, 1);
-
+        return glm::mat4(
+            1, 0, 0, 0,
+            0, cos(radians), sin(radians), 0,
+            0, -sin(radians), cos(radians), 0,
+            0, 0, 0, 1
+        );
     }
-}   // namespace transform2D
+
+    // Rotate matrix around Y axis
+    inline glm::mat4 RotateOY(float radians)
+    {
+        return glm::mat4(
+            cos(radians), 0, -sin(radians), 0,
+            0, 1, 0, 0,
+            sin(radians), 0, cos(radians), 0,
+            0, 0, 0, 1
+        );
+    }
+
+    // Rotate matrix around Z axis
+    inline glm::mat4 RotateOZ(float radians)
+    {
+        return glm::mat4(
+            cos(radians), sin(radians), 0, 0,
+            -sin(radians), cos(radians), 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1
+        );
+    }
+}   // namespace transform3D}   // namespace transform3D

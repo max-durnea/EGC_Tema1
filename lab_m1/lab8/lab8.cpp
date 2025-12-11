@@ -53,13 +53,18 @@ void Lab8::Init()
         shaders[shader->GetName()] = shader;
     }
 
-    // Light & material properties
     {
         lightPosition = glm::vec3(0, 1, 1);
         lightDirection = glm::vec3(0, -1, 0);
         materialShininess = 30;
-        materialKd = 0.5;
-        materialKs = 0.5;
+        materialKd = 0.8;
+        materialKs = 0.8;
+        isSpotlight = false;
+        cutoffAngle = 60.0f;
+        
+        lightColor1 = glm::vec3(1.0f, 0.0f, 0.0f);  
+        lightPosition2 = glm::vec3(-3, 2, 0);
+        lightColor2 = glm::vec3(0.0f, 0.0f, 1.0f); 
     }
 }
 
@@ -82,7 +87,8 @@ void Lab8::Update(float deltaTimeSeconds)
         glm::mat4 modelMatrix = glm::mat4(1);
         modelMatrix = glm::translate(modelMatrix, glm::vec3(0, 1, 0));
         // TODO(student): Add or change the object colors
-        RenderSimpleMesh(meshes["sphere"], shaders["LabShader"], modelMatrix);
+		auto color = glm::vec3(0.0, 0.0, 1.0);
+        RenderSimpleMesh(meshes["sphere"], shaders["LabShader"], modelMatrix,color);
 
     }
 
@@ -92,7 +98,8 @@ void Lab8::Update(float deltaTimeSeconds)
         modelMatrix = glm::rotate(modelMatrix, RADIANS(60.0f), glm::vec3(1, 0, 0));
         modelMatrix = glm::scale(modelMatrix, glm::vec3(0.5f));
         // TODO(student): Add or change the object colors
-        RenderSimpleMesh(meshes["box"], shaders["LabShader"], modelMatrix);
+		auto color = glm::vec3(1.0, 0.0, 0.0);
+        RenderSimpleMesh(meshes["box"], shaders["LabShader"], modelMatrix,color);
 
     }
 
@@ -109,7 +116,8 @@ void Lab8::Update(float deltaTimeSeconds)
         modelMatrix = glm::translate(modelMatrix, glm::vec3(0, 0.01f, 0));
         modelMatrix = glm::scale(modelMatrix, glm::vec3(0.25f));
         // TODO(student): Add or change the object colors
-        RenderSimpleMesh(meshes["plane"], shaders["LabShader"], modelMatrix);
+		const auto color = glm::vec3(0.5f, 0.5f, 0.5f);
+        RenderSimpleMesh(meshes["plane"], shaders["LabShader"], modelMatrix,color);
 
     }
 
@@ -117,6 +125,13 @@ void Lab8::Update(float deltaTimeSeconds)
     {
         glm::mat4 modelMatrix = glm::mat4(1);
         modelMatrix = glm::translate(modelMatrix, lightPosition);
+        modelMatrix = glm::scale(modelMatrix, glm::vec3(0.1f));
+        RenderMesh(meshes["sphere"], shaders["Simple"], modelMatrix);
+    }
+    
+    {
+        glm::mat4 modelMatrix = glm::mat4(1);
+        modelMatrix = glm::translate(modelMatrix, lightPosition2);
         modelMatrix = glm::scale(modelMatrix, glm::vec3(0.1f));
         RenderMesh(meshes["sphere"], shaders["Simple"], modelMatrix);
     }
@@ -163,6 +178,20 @@ void Lab8::RenderSimpleMesh(Mesh *mesh, Shader *shader, const glm::mat4 & modelM
     glUniform3f(object_color, color.r, color.g, color.b);
 
     // TODO(student): Set any other shader uniforms that you need
+    int is_spotlight_loc = glGetUniformLocation(shader->program, "is_spotlight");
+    glUniform1i(is_spotlight_loc, isSpotlight ? 1 : 0);
+
+    int cutoff_angle_loc = glGetUniformLocation(shader->program, "cutoff_angle");
+    glUniform1f(cutoff_angle_loc, cutoffAngle);
+    
+    int light_color1_loc = glGetUniformLocation(shader->program, "light_color1");
+    glUniform3f(light_color1_loc, lightColor1.r, lightColor1.g, lightColor1.b);
+    
+    int light_position2_loc = glGetUniformLocation(shader->program, "light_position2");
+    glUniform3f(light_position2_loc, lightPosition2.x, lightPosition2.y, lightPosition2.z);
+    
+    int light_color2_loc = glGetUniformLocation(shader->program, "light_color2");
+    glUniform3f(light_color2_loc, lightColor2.r, lightColor2.g, lightColor2.b);
 
     // Bind model matrix
     GLint loc_model_matrix = glGetUniformLocation(shader->program, "Model");
@@ -210,7 +239,51 @@ void Lab8::OnInputUpdate(float deltaTime, int mods)
         if (window->KeyHold(GLFW_KEY_Q)) lightPosition -= up * deltaTime * speed;
 
         // TODO(student): Set any other keys that you might need
-
+        if (window->KeyHold(GLFW_KEY_I)) lightPosition2 -= forward * deltaTime * speed;
+        if (window->KeyHold(GLFW_KEY_J)) lightPosition2 -= right * deltaTime * speed;
+        if (window->KeyHold(GLFW_KEY_K)) lightPosition2 += forward * deltaTime * speed;
+        if (window->KeyHold(GLFW_KEY_L)) lightPosition2 += right * deltaTime * speed;
+        if (window->KeyHold(GLFW_KEY_U)) lightPosition2 += up * deltaTime * speed;
+        if (window->KeyHold(GLFW_KEY_O)) lightPosition2 -= up * deltaTime * speed;
+        
+        float rotationSpeed = 60.0f;
+        float angleSpeed = 15.0f;
+        
+        if (window->KeyHold(GLFW_KEY_UP))
+        {
+            glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), glm::radians(rotationSpeed * deltaTime), glm::vec3(1, 0, 0));
+            lightDirection = glm::vec3(rotation * glm::vec4(lightDirection, 0.0f));
+            lightDirection = glm::normalize(lightDirection);
+        }
+        if (window->KeyHold(GLFW_KEY_DOWN))
+        {
+            glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), glm::radians(-rotationSpeed * deltaTime), glm::vec3(1, 0, 0));
+            lightDirection = glm::vec3(rotation * glm::vec4(lightDirection, 0.0f));
+            lightDirection = glm::normalize(lightDirection);
+        }
+        if (window->KeyHold(GLFW_KEY_LEFT))
+        {
+            glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), glm::radians(-rotationSpeed * deltaTime), glm::vec3(0, 0, 1));
+            lightDirection = glm::vec3(rotation * glm::vec4(lightDirection, 0.0f));
+            lightDirection = glm::normalize(lightDirection);
+        }
+        if (window->KeyHold(GLFW_KEY_RIGHT))
+        {
+            glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), glm::radians(rotationSpeed * deltaTime), glm::vec3(0, 0, 1));
+            lightDirection = glm::vec3(rotation * glm::vec4(lightDirection, 0.0f));
+            lightDirection = glm::normalize(lightDirection);
+        }
+        
+        if (window->KeyHold(GLFW_KEY_Z))
+        {
+            cutoffAngle += angleSpeed * deltaTime;
+            if (cutoffAngle > 90.0f) cutoffAngle = 90.0f;
+        }
+        if (window->KeyHold(GLFW_KEY_X))
+        {
+            cutoffAngle -= angleSpeed * deltaTime;
+            if (cutoffAngle < 5.0f) cutoffAngle = 5.0f;
+        }
     }
 }
 
@@ -220,7 +293,10 @@ void Lab8::OnKeyPress(int key, int mods)
     // Add key press event
 
     // TODO(student): Set keys that you might need
-
+    if (key == GLFW_KEY_F)
+    {
+        isSpotlight = !isSpotlight;
+    }
 }
 
 
