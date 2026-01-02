@@ -9,25 +9,26 @@
 namespace m1
 {
     // === RAIL SYSTEM STRUCTURES ===
-    
+
     // Rail segment - represents a piece of track between two points
     struct Rail {
         glm::vec3 startPosition;
         glm::vec3 endPosition;
         std::vector<Rail*> children;  // For junctions (0, 1, or multiple children)
-        
-        Rail(glm::vec3 start, glm::vec3 end) 
-            : startPosition(start), endPosition(end) {}
-        
+
+        Rail(glm::vec3 start, glm::vec3 end)
+            : startPosition(start), endPosition(end) {
+        }
+
         // Check if this is a junction (has multiple children)
         bool isJunction() const { return children.size() > 1; }
-        
+
         // Get next rail (single child or first child)
-        Rail* getNext() const { 
-            return children.empty() ? nullptr : children[0]; 
+        Rail* getNext() const {
+            return children.empty() ? nullptr : children[0];
         }
     };
-    
+
     // Train - moves along rails with interpolation
     struct Train {
         Rail* currentRail;           // Current rail segment
@@ -37,11 +38,14 @@ namespace m1
         float angle;                 // Current rotation angle (for direction)
         bool stopped;                // Is train stopped at junction?
         int selectedDirection;       // Which direction to take at junction (-1 = none)
-        
-        Train() : currentRail(nullptr), progress(0.0f), speed(1.0f), 
-                  position(0, 0, 0), angle(0), stopped(false), selectedDirection(-1) {}
+        int queuedDirection;         // Next desired direction chosen by player (-1 = none)
+
+        Train() : currentRail(nullptr), progress(0.0f), speed(1.0f),
+            position(0, 0, 0), angle(0), stopped(false), selectedDirection(-1),
+            queuedDirection(-1) {
+        }
     };
-    
+
     class Tema1 : public gfxc::SimpleScene
     {
     public:
@@ -63,27 +67,29 @@ namespace m1
         void OnMouseBtnRelease(int mouseX, int mouseY, int button, int mods) override;
         void OnMouseScroll(int mouseX, int mouseY, int offsetX, int offsetY) override;
         void OnWindowResize(int width, int height) override;
-        
+
         void CreateMesh(const char* name, const std::vector<VertexFormat>& vertices, const std::vector<unsigned int>& indices);
-        
+
         // Helper functions to create geometric shapes
         void CreateBox(const char* name, glm::vec3 color);
         void CreateCylinder(const char* name, glm::vec3 color, int segments = 20);
         void CreatePyramid(const char* name, glm::vec3 color);
         void CreateTerrainQuad(const char* name, glm::vec3 p1, glm::vec3 p2, glm::vec3 p3, glm::vec3 p4, glm::vec3 color);
-        
+
         // Functions to render train components
         void RenderLocomotive(glm::vec3 position, float angle);
         void RenderWagon(glm::vec3 position, float angle);  // Not currently used
         void RenderStation(glm::vec3 position, float angle, const std::string& type);
-        
+
         // Rail system functions
         void InitializeRailNetwork();
         void UpdateTrainMovement(float deltaTime);
         void RenderRails();
         void HandleJunctionInput(int key);
+        void QueueDirectionInput(int key);
+        int ChooseDirectionIndex(int numChildren, bool allowDefault);
         float CalculateTrainAngle(glm::vec3 direction);
-        
+
         // Train and rail data
         Train train;
         std::vector<Rail*> railNetwork;  // All rail segments
