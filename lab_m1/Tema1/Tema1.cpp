@@ -603,21 +603,16 @@ void Tema1::RenderRail(Rail* rail)
 {
     if (!rail) return;
 
-    // NO terrain rendering under rails anymore - terrain is rendered separately
     RenderTerrainUnderRail(rail);
-    // Render the rail
+    
     // Handle junction rails specially
     if (rail->isJunction()) {
         RenderJunctionRail(rail);
         return;
     }
 
-    // Determine terrain type based on rail position
-    glm::vec3 midPoint = (rail->startPosition + rail->endPosition) * 0.5f;
-    RailType terrainType = DetermineTerrainType(midPoint);
-
-    // Render based on terrain type
-    switch (terrainType) {
+    // Use the rail's actual type instead of calculating it from position
+    switch (rail->type) {
     case RailType::NORMAL:
         RenderNormalRail(rail->startPosition, rail->endPosition);
         break;
@@ -643,8 +638,6 @@ void Tema1::RenderRails()
 
 void Tema1::InitializeRailNetwork()
 {
-    // Create a rail network with ONLY straight segments (no diagonals)
-    // Rails are either horizontal (East-West) or vertical (North-South)
     const float RAIL_Y = 0.05f;
 
     // Clear any existing rails
@@ -653,241 +646,172 @@ void Tema1::InitializeRailNetwork()
     }
     railNetwork.clear();
 
-    // ===== MAIN LOOP WITH INTERSECTIONS =====
-    // Rectangular loop that crosses water and goes near mountains
-
-    // SEGMENT 1: Start at bottom-right, going WEST
+    // ===== MAIN RECTANGULAR LOOP =====
+    // Bottom side: WEST from (15, -10) to (-15, -10)
     Rail* rail1 = new Rail(
         glm::vec3(15, RAIL_Y, -10),
-        glm::vec3(5, RAIL_Y, -10),
-        RailType::NORMAL
+        glm::vec3(-15, RAIL_Y, -10),
+        RailType::BRIDGE
     );
     railNetwork.push_back(rail1);
 
-    // SEGMENT 2: Turn NORTH (approaching river)
+    // Left side: NORTH from (-15, -10) to (-15, 10)
     Rail* rail2 = new Rail(
-        glm::vec3(5, RAIL_Y, -10),
-        glm::vec3(5, RAIL_Y, -4),
+        glm::vec3(-15, RAIL_Y, -10),
+        glm::vec3(-15, RAIL_Y, -4),
         RailType::NORMAL
     );
     railNetwork.push_back(rail2);
     rail1->children.push_back(rail2);
 
-    // SEGMENT 3: BRIDGE over river (NORTH, through water Z: -4 to 4)
     Rail* rail3 = new Rail(
-        glm::vec3(5, RAIL_Y, -4),
-        glm::vec3(5, RAIL_Y, 4),
-        RailType::BRIDGE  // Will be auto-detected as bridge
+        glm::vec3(-15, RAIL_Y, -4),
+        glm::vec3(-15, RAIL_Y, 4),
+        RailType::BRIDGE
     );
     railNetwork.push_back(rail3);
     rail2->children.push_back(rail3);
 
-    // SEGMENT 4: Continue NORTH on plains after bridge
     Rail* rail4 = new Rail(
-        glm::vec3(5, RAIL_Y, 4),
-        glm::vec3(5, RAIL_Y, 10),
-        RailType::NORMAL
+        glm::vec3(-15, RAIL_Y, 4),
+        glm::vec3(-15, RAIL_Y, 10),
+        RailType::BRIDGE
     );
     railNetwork.push_back(rail4);
     rail3->children.push_back(rail4);
 
-    // ===== JUNCTION 1: T-Junction (3-way) =====
-    // Position: (5, 10) - player can go WEST (main) or NORTH (branch to mountains)
+    // Top side: EAST from (-15, 10) to first junction
+    Rail* rail5 = new Rail(
+        glm::vec3(-15, RAIL_Y, 10),
+        glm::vec3(-5, RAIL_Y, 10),
+        RailType::BRIDGE
+    );
+    railNetwork.push_back(rail5);
+    rail4->children.push_back(rail5);
+
+    // ===== JUNCTION 1: T-junction at (-5, 10) - SPLIT =====
     Rail* junction1 = new Rail(
-        glm::vec3(5, RAIL_Y, 10),
-        glm::vec3(5, RAIL_Y, 10),  // Junction is a point
+        glm::vec3(-5, RAIL_Y, 10),
+        glm::vec3(-5, RAIL_Y, 10),
         RailType::JUNCTION_T
     );
     railNetwork.push_back(junction1);
-    rail4->children.push_back(junction1);
+    rail5->children.push_back(junction1);
 
-    // BRANCH 1A from Junction 1: Go WEST (main path)
-    Rail* rail5 = new Rail(
-        glm::vec3(5, RAIL_Y, 10),
-        glm::vec3(-5, RAIL_Y, 10),
-        RailType::NORMAL
-    );
-    railNetwork.push_back(rail5);
-    junction1->children.push_back(rail5);
-
-    // BRANCH 1B from Junction 1: Go NORTH into mountains
-    Rail* railBranch1 = new Rail(
-        glm::vec3(5, RAIL_Y, 10),
-        glm::vec3(5, RAIL_Y, 15),
-        RailType::NORMAL
-    );
-    railNetwork.push_back(railBranch1);
-    junction1->children.push_back(railBranch1);
-
-    // Branch 1B continues: TUNNEL through northeast mountains (going NORTH)
-    // Northeast mountains: X in [4, 20], Z in [12, 20]
-    Rail* railBranch2 = new Rail(
-        glm::vec3(5, RAIL_Y, 15),
-        glm::vec3(5, RAIL_Y, 18),
-        RailType::TUNNEL  // Will be auto-detected
-    );
-    railNetwork.push_back(railBranch2);
-    railBranch1->children.push_back(railBranch2);
-
-    // Branch 1B: Turn WEST in mountains
-    Rail* railBranch3 = new Rail(
-        glm::vec3(5, RAIL_Y, 18),
-        glm::vec3(-5, RAIL_Y, 18),
-        RailType::TUNNEL
-    );
-    railNetwork.push_back(railBranch3);
-    railBranch2->children.push_back(railBranch3);
-
-    // Branch 1B: Turn SOUTH, exiting mountains (northwest mountains)
-    Rail* railBranch4 = new Rail(
-        glm::vec3(-5, RAIL_Y, 18),
-        glm::vec3(-5, RAIL_Y, 15),
-        RailType::TUNNEL
-    );
-    railNetwork.push_back(railBranch4);
-    railBranch3->children.push_back(railBranch4);
-
-    // Branch 1B: Continue SOUTH on plains
-    Rail* railBranch5 = new Rail(
-        glm::vec3(-5, RAIL_Y, 15),
-        glm::vec3(-5, RAIL_Y, 10),
-        RailType::NORMAL
-    );
-    railNetwork.push_back(railBranch5);
-    railBranch4->children.push_back(railBranch5);
-
-    // Rejoin main path at rail5 endpoint
-    railBranch5->children.push_back(rail5);
-
-    // Continue main path: SEGMENT 6 - Turn SOUTH
+    // Path A from Junction 1: Continue EAST (main path)
     Rail* rail6 = new Rail(
         glm::vec3(-5, RAIL_Y, 10),
-        glm::vec3(-5, RAIL_Y, 4),
-        RailType::NORMAL
+        glm::vec3(5, RAIL_Y, 10),
+        RailType::TUNNEL
     );
     railNetwork.push_back(rail6);
-    rail5->children.push_back(rail6);
+    junction1->children.push_back(rail6);
 
-    // SEGMENT 7: BRIDGE over river (going SOUTH)
-    Rail* rail7 = new Rail(
-        glm::vec3(-5, RAIL_Y, 4),
-        glm::vec3(-5, RAIL_Y, -4),
-        RailType::BRIDGE
+    // Path B from Junction 1: Go NORTH (mountain detour)
+    Rail* branchA1 = new Rail(
+        glm::vec3(-5, RAIL_Y, 10),
+        glm::vec3(-5, RAIL_Y, 16),
+        RailType::NORMAL
     );
-    railNetwork.push_back(rail7);
-    rail6->children.push_back(rail7);
+    railNetwork.push_back(branchA1);
+    junction1->children.push_back(branchA1);
 
-    // ===== JUNCTION 2: L-Junction (2-way, 90 degrees) =====
-    // Position: (-5, -4) - player can go SOUTH (main) or WEST (branch to SW mountains)
+    Rail* branchA2 = new Rail(
+        glm::vec3(-5, RAIL_Y, 16),
+        glm::vec3(-5, RAIL_Y, 19),
+        RailType::TUNNEL
+    );
+    railNetwork.push_back(branchA2);
+    branchA1->children.push_back(branchA2);
+
+    Rail* branchA3 = new Rail(
+        glm::vec3(-5, RAIL_Y, 19),
+        glm::vec3(5, RAIL_Y, 19),
+        RailType::TUNNEL
+    );
+    railNetwork.push_back(branchA3);
+    branchA2->children.push_back(branchA3);
+
+    Rail* branchA4 = new Rail(
+        glm::vec3(5, RAIL_Y, 19),
+        glm::vec3(5, RAIL_Y, 16),
+        RailType::TUNNEL
+    );
+    railNetwork.push_back(branchA4);
+    branchA3->children.push_back(branchA4);
+
+    Rail* branchA5 = new Rail(
+        glm::vec3(5, RAIL_Y, 16),
+        glm::vec3(5, RAIL_Y, 10),
+        RailType::NORMAL
+    );
+    railNetwork.push_back(branchA5);
+    branchA4->children.push_back(branchA5);
+
+    // ===== JUNCTION 2: T-junction at (5, 10) - MERGE with CHOICES =====
+    // This junction allows trains to go EAST or WEST
     Rail* junction2 = new Rail(
-        glm::vec3(-5, RAIL_Y, -4),
-        glm::vec3(-5, RAIL_Y, -4),
-        RailType::JUNCTION_L
+        glm::vec3(5, RAIL_Y, 10),
+        glm::vec3(5, RAIL_Y, 10),
+        RailType::JUNCTION_T
     );
     railNetwork.push_back(junction2);
-    rail7->children.push_back(junction2);
+    rail6->children.push_back(junction2);      // Main path enters from WEST
+    branchA5->children.push_back(junction2);   // Branch enters from SOUTH
 
-    // BRANCH 2A from Junction 2: Continue SOUTH (main path)
+    // Exit 1: Continue EAST (main loop continues)
+    Rail* rail7 = new Rail(
+        glm::vec3(5, RAIL_Y, 10),
+        glm::vec3(15, RAIL_Y, 10),
+        RailType::NORMAL
+    );
+    railNetwork.push_back(rail7);
+    junction2->children.push_back(rail7);
+
+    // Exit 2: Go back WEST (return via main path)
+    Rail* rail6_reverse = new Rail(
+        glm::vec3(5, RAIL_Y, 10),
+        glm::vec3(-5, RAIL_Y, 10),
+        RailType::NORMAL
+    );
+    railNetwork.push_back(rail6_reverse);
+    junction2->children.push_back(rail6_reverse);
+
+    // Connect reverse path back to junction 1
+    rail6_reverse->children.push_back(junction1);
+
+    // Right side: SOUTH from (15, 10) to (15, -10)
     Rail* rail8 = new Rail(
-        glm::vec3(-5, RAIL_Y, -4),
-        glm::vec3(-5, RAIL_Y, -10),
+        glm::vec3(15, RAIL_Y, 10),
+        glm::vec3(15, RAIL_Y, 4),
         RailType::NORMAL
     );
     railNetwork.push_back(rail8);
-    junction2->children.push_back(rail8);
+    rail7->children.push_back(rail8);
 
-    // BRANCH 2B from Junction 2: Go WEST toward southwest mountains
-    Rail* railBranch2A = new Rail(
-        glm::vec3(-5, RAIL_Y, -4),
-        glm::vec3(-10, RAIL_Y, -4),
-        RailType::NORMAL
-    );
-    railNetwork.push_back(railBranch2A);
-    junction2->children.push_back(railBranch2A);
-
-    // Branch 2B: Turn SOUTH into mountains
-    Rail* railBranch2B = new Rail(
-        glm::vec3(-10, RAIL_Y, -4),
-        glm::vec3(-10, RAIL_Y, -15),
-        RailType::NORMAL
-    );
-    railNetwork.push_back(railBranch2B);
-    railBranch2A->children.push_back(railBranch2B);
-
-    // Branch 2B: TUNNEL through southwest mountains
-    // Southwest mountains: X in [-20, -4], Z in [-20, -12]
-    Rail* railBranch2C = new Rail(
-        glm::vec3(-10, RAIL_Y, -15),
-        glm::vec3(-10, RAIL_Y, -18),
-        RailType::TUNNEL
-    );
-    railNetwork.push_back(railBranch2C);
-    railBranch2B->children.push_back(railBranch2C);
-
-    // Branch 2B: Turn EAST in mountains
-    Rail* railBranch2D = new Rail(
-        glm::vec3(-10, RAIL_Y, -18),
-        glm::vec3(5, RAIL_Y, -18),
-        RailType::TUNNEL
-    );
-    railNetwork.push_back(railBranch2D);
-    railBranch2C->children.push_back(railBranch2D);
-
-    // Branch 2B: Turn NORTH, exiting mountains (SE mountains area)
-    Rail* railBranch2E = new Rail(
-        glm::vec3(5, RAIL_Y, -18),
-        glm::vec3(5, RAIL_Y, -15),
-        RailType::TUNNEL
-    );
-    railNetwork.push_back(railBranch2E);
-    railBranch2D->children.push_back(railBranch2E);
-
-    // Branch 2B: Continue NORTH on plains
-    Rail* railBranch2F = new Rail(
-        glm::vec3(5, RAIL_Y, -15),
-        glm::vec3(5, RAIL_Y, -10),
-        RailType::NORMAL
-    );
-    railNetwork.push_back(railBranch2F);
-    railBranch2E->children.push_back(railBranch2F);
-
-    // Branch 2B: Turn WEST to rejoin
-    Rail* railBranch2G = new Rail(
-        glm::vec3(5, RAIL_Y, -10),
-        glm::vec3(-5, RAIL_Y, -10),
-        RailType::NORMAL
-    );
-    railNetwork.push_back(railBranch2G);
-    railBranch2F->children.push_back(railBranch2G);
-
-    // Connect branch back to main path
-    railBranch2G->children.push_back(rail8);
-
-    // Continue main path: SEGMENT 9 - Go EAST to complete loop
     Rail* rail9 = new Rail(
-        glm::vec3(-5, RAIL_Y, -10),
-        glm::vec3(5, RAIL_Y, -10),
-        RailType::NORMAL
+        glm::vec3(15, RAIL_Y, 4),
+        glm::vec3(15, RAIL_Y, -4),
+        RailType::BRIDGE
     );
     railNetwork.push_back(rail9);
     rail8->children.push_back(rail9);
 
-    // SEGMENT 10: Continue EAST
     Rail* rail10 = new Rail(
-        glm::vec3(5, RAIL_Y, -10),
+        glm::vec3(15, RAIL_Y, -4),
         glm::vec3(15, RAIL_Y, -10),
         RailType::NORMAL
     );
     railNetwork.push_back(rail10);
     rail9->children.push_back(rail10);
 
-    // CLOSE THE LOOP - connect back to start
+    // CLOSE THE LOOP
     rail10->children.push_back(rail1);
 
-    // Initialize train at the start
+    // Initialize train
     train.currentRail = rail1;
     train.progress = 0.0f;
-    train.speed = 3.0f;  // Units per second
+    train.speed = 3.0f;
     train.position = rail1->startPosition;
     train.angle = CalculateTrainAngle(rail1->getDirection());
     train.stopped = false;
@@ -970,13 +894,23 @@ void Tema1::HandleJunctionInput(int key)
 
     // Validate and apply selection
     if (selectedIndex >= 0 && selectedIndex < numChildren) {
-        train.currentRail = train.currentRail->children[selectedIndex];
+        Rail* selectedRail = train.currentRail->children[selectedIndex];
+
+        std::cout << "\n>>> SELECTED DIRECTION: " << (key == GLFW_KEY_W ? "FORWARD (W)" :
+            key == GLFW_KEY_A ? "LEFT (A)" : "RIGHT (D)") << std::endl;
+        std::cout << ">>> Going to: (" << selectedRail->endPosition.x << ", "
+            << selectedRail->endPosition.y << ", " << selectedRail->endPosition.z << ")" << std::endl;
+        std::cout << ">>> Rail type: " << (selectedRail->type == RailType::NORMAL ? "Normal" :
+            selectedRail->type == RailType::BRIDGE ? "Bridge" :
+            selectedRail->type == RailType::TUNNEL ? "Tunnel" : "Unknown") << "\n" << std::endl;
+
+        train.currentRail = selectedRail;
         train.progress = 0.0f;
         train.stopped = false;
         train.selectedDirection = -1;
-
-        std::cout << "Selected direction: " << (key == GLFW_KEY_W ? "Forward" :
-            key == GLFW_KEY_A ? "Left" : "Right") << std::endl;
+    }
+    else {
+        std::cout << ">>> Invalid direction selected!" << std::endl;
     }
 }
 
@@ -988,10 +922,53 @@ void Tema1::UpdateTrainMovement(float deltaTime)
     float railLength = train.currentRail->getLength();
     if (railLength == 0) {
         // This is a junction (zero-length rail)
-        train.stopped = true;
-        train.position = train.currentRail->startPosition;
-        std::cout << "Train stopped at junction. Use W (forward), A (left), or D (right) to choose direction." << std::endl;
-        return;
+        std::cout << "\n=== JUNCTION INFO ===" << std::endl;
+        std::cout << "Position: (" << train.currentRail->startPosition.x << ", "
+            << train.currentRail->startPosition.y << ", "
+            << train.currentRail->startPosition.z << ")" << std::endl;
+        std::cout << "Type: " << (train.currentRail->type == RailType::JUNCTION_T ? "T-Junction" :
+            train.currentRail->type == RailType::JUNCTION_L ? "L-Junction" :
+            train.currentRail->type == RailType::JUNCTION_CROSS ? "Cross-Junction" : "Unknown") << std::endl;
+
+        // Check if it's a SPLIT junction (multiple exits) or MERGE junction (single exit)
+        int numExits = train.currentRail->children.size();
+        std::cout << "Number of exits: " << numExits << std::endl;
+
+        // Print all exit directions
+        for (int i = 0; i < numExits; i++) {
+            Rail* exit = train.currentRail->children[i];
+            glm::vec3 exitDir = exit->endPosition - exit->startPosition;
+            std::cout << "  Exit " << (i + 1) << ": to (" << exit->endPosition.x << ", "
+                << exit->endPosition.y << ", " << exit->endPosition.z << ")" << std::endl;
+        }
+
+        if (numExits <= 1) {
+            // Merge junction or dead end - continue automatically
+            if (numExits == 1) {
+                train.currentRail = train.currentRail->children[0];
+                train.progress = 0.0f;
+                train.position = train.currentRail->startPosition;
+                std::cout << "Passing through merge junction automatically" << std::endl;
+                std::cout << "=====================\n" << std::endl;
+                return;
+            }
+            else {
+                // Dead end
+                train.stopped = true;
+                train.position = train.currentRail->startPosition;
+                std::cout << "End of track reached." << std::endl;
+                std::cout << "=====================\n" << std::endl;
+                return;
+            }
+        }
+        else {
+            // Split junction - stop and wait for input
+            train.stopped = true;
+            train.position = train.currentRail->startPosition;
+            std::cout << "Train stopped at junction. Use W (forward), A (left), or D (right) to choose direction." << std::endl;
+            std::cout << "=====================\n" << std::endl;
+            return;
+        }
     }
 
     train.progress += (train.speed * deltaTime) / railLength;
@@ -1006,16 +983,52 @@ void Tema1::UpdateTrainMovement(float deltaTime)
         if (nextRail) {
             // Check if the NEXT rail is a junction
             if (nextRail->isJunction()) {
-                // Move to junction and stop
+                // Move to junction
                 train.currentRail = nextRail;
                 train.progress = 0.0f;
                 train.position = nextRail->startPosition;
-                train.stopped = true;
-                std::cout << "Train stopped at junction. Use W (forward), A (left), or D (right) to choose direction." << std::endl;
+
+                std::cout << "\n=== APPROACHING JUNCTION ===" << std::endl;
+                std::cout << "Position: (" << train.currentRail->startPosition.x << ", "
+                    << train.currentRail->startPosition.y << ", "
+                    << train.currentRail->startPosition.z << ")" << std::endl;
+
+                // Check if it's a split or merge junction
+                int numExits = nextRail->children.size();
+                std::cout << "Number of exits: " << numExits << std::endl;
+
+                if (numExits <= 1) {
+                    // Merge junction - continue automatically
+                    if (numExits == 1) {
+                        train.currentRail = nextRail->children[0];
+                        train.progress = 0.0f;
+                        std::cout << "Passing through merge junction automatically" << std::endl;
+                        std::cout << "============================\n" << std::endl;
+                    }
+                    else {
+                        train.stopped = true;
+                        std::cout << "End of track reached." << std::endl;
+                        std::cout << "============================\n" << std::endl;
+                    }
+                }
+                else {
+                    // Split junction - stop
+                    train.stopped = true;
+                    std::cout << "Train stopped at junction. Use W (forward), A (left), or D (right) to choose direction." << std::endl;
+                    std::cout << "============================\n" << std::endl;
+                }
                 return;
             }
             else {
                 // Move to next rail segment
+                std::cout << "Moving to rail: (" << nextRail->startPosition.x << ", "
+                    << nextRail->startPosition.y << ", " << nextRail->startPosition.z << ") -> ("
+                    << nextRail->endPosition.x << ", " << nextRail->endPosition.y << ", "
+                    << nextRail->endPosition.z << ") | Type: "
+                    << (nextRail->type == RailType::NORMAL ? "Normal" :
+                        nextRail->type == RailType::BRIDGE ? "Bridge" :
+                        nextRail->type == RailType::TUNNEL ? "Tunnel" : "Unknown") << std::endl;
+
                 train.currentRail = nextRail;
                 train.progress = 0.0f;
             }
@@ -1284,9 +1297,8 @@ void Tema1::RenderTerrainUnderRail(Rail* rail)
     glm::vec3 direction = glm::normalize(end - start);
     float length = glm::length(end - start);
 
-    // Determine terrain type based on rail position
-    glm::vec3 midPoint = (start + end) * 0.5f;
-    RailType terrainType = DetermineTerrainType(midPoint);
+    // Use rail->type instead of DetermineTerrainType()
+    RailType terrainType = rail->type;
 
     // Terrain colors and Y levels
     glm::vec3 color;
