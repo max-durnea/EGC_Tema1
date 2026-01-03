@@ -45,13 +45,13 @@ void Tema1::Init()
     // Create rail meshes (different colors for different types)
     // Normal rail - black
     CreateBox("rail_normal", glm::vec3(0.1f, 0.1f, 0.1f));
-    
+
     // Bridge rail colors - 4 alternating colors (longitudinal stripes)
     CreateBox("rail_bridge_stripe1", glm::vec3(1.0f, 0.6f, 0.2f));  // Orange
     CreateBox("rail_bridge_stripe2", glm::vec3(0.9f, 0.9f, 0.9f));  // White
     CreateBox("rail_bridge_stripe3", glm::vec3(1.0f, 0.6f, 0.2f));  // Orange
     CreateBox("rail_bridge_stripe4", glm::vec3(0.9f, 0.9f, 0.9f));  // White
-    
+
     // Tunnel rail colors - 4 alternating colors (transversal stripes)
     CreateBox("rail_tunnel_stripe1", glm::vec3(0.5f, 0.3f, 0.1f));  // Dark brown
     CreateBox("rail_tunnel_stripe2", glm::vec3(0.7f, 0.7f, 0.7f));  // Light gray
@@ -59,7 +59,7 @@ void Tema1::Init()
     CreateBox("rail_tunnel_stripe4", glm::vec3(0.7f, 0.7f, 0.7f));  // Light gray
 
     // NO pre-rendered terrain - terrain will be rendered dynamically under each rail
-    
+
     // Initialize the rail network
     InitializeRailNetwork();
 }
@@ -72,12 +72,15 @@ void Tema1::FrameStart() {
 }
 
 void Tema1::Update(float deltaTimeSeconds) {
-    // Render all rails with terrain underneath
+    // Render full terrain FIRST (as background)
+    RenderFullTerrain();
+
+    // Render all rails on top of terrain
     RenderRails();
-    
+
     // Update train movement
     UpdateTrainMovement(deltaTimeSeconds);
-    
+
     // Render the locomotive at its current position
     RenderLocomotive(train.position, train.angle);
 }
@@ -99,7 +102,7 @@ void Tema1::OnKeyPress(int key, int mods)
             return;
         }
     }
-    
+
     // Handle SPACE to continue on default path at junction
     if (key == GLFW_KEY_SPACE && train.stopped && train.currentRail && train.currentRail->isJunction()) {
         // Take the first (default) path
@@ -498,23 +501,23 @@ void Tema1::RenderNormalRail(glm::vec3 start, glm::vec3 end)
     // Normal rail: Single black parallelepiped
     const float RAIL_WIDTH = 0.3f;
     const float RAIL_HEIGHT = 0.1f;
-    
+
     glm::vec3 direction = end - start;
     float length = glm::length(direction);
     direction = glm::normalize(direction);
-    
+
     // Calculate center point
     glm::vec3 center = (start + end) * 0.5f;
-    
+
     // Calculate rotation angle (around Y axis)
     float angle = atan2(direction.x, direction.z);
-    
+
     // Create transformation matrix
     glm::mat4 modelMatrix = glm::mat4(1);
     modelMatrix = glm::translate(modelMatrix, center);
     modelMatrix = glm::rotate(modelMatrix, angle, glm::vec3(0, 1, 0));
     modelMatrix = glm::scale(modelMatrix, glm::vec3(RAIL_WIDTH, RAIL_HEIGHT, length));
-    
+
     RenderMesh(meshes["rail_normal"], shaders["VertexColor"], modelMatrix);
 }
 
@@ -524,20 +527,20 @@ void Tema1::RenderBridgeRail(glm::vec3 start, glm::vec3 end)
     const float RAIL_WIDTH = 0.3f;
     const float RAIL_HEIGHT = 0.1f;
     const float STRIPE_WIDTH = RAIL_WIDTH / 4.0f;  // Divide width into 4 stripes
-    
+
     glm::vec3 direction = end - start;
     float length = glm::length(direction);
     direction = glm::normalize(direction);
-    
+
     // Calculate center point
     glm::vec3 center = (start + end) * 0.5f;
-    
+
     // Calculate rotation angle (around Y axis)
     float angle = atan2(direction.x, direction.z);
-    
+
     // Calculate perpendicular direction for stripe offset (in XZ plane)
     glm::vec3 perpendicular = glm::normalize(glm::vec3(-direction.z, 0, direction.x));
-    
+
     // Render 4 stripes side by side (longitudinal)
     const char* stripeNames[] = {
         "rail_bridge_stripe1",
@@ -545,16 +548,16 @@ void Tema1::RenderBridgeRail(glm::vec3 start, glm::vec3 end)
         "rail_bridge_stripe3",
         "rail_bridge_stripe4"
     };
-    
+
     for (int i = 0; i < 4; i++) {
         float offset = (i - 1.5f) * STRIPE_WIDTH;  // Center the stripes: -1.5, -0.5, 0.5, 1.5
         glm::vec3 stripeCenter = center + perpendicular * offset;
-        
+
         glm::mat4 modelMatrix = glm::mat4(1);
         modelMatrix = glm::translate(modelMatrix, stripeCenter);
         modelMatrix = glm::rotate(modelMatrix, angle, glm::vec3(0, 1, 0));
         modelMatrix = glm::scale(modelMatrix, glm::vec3(STRIPE_WIDTH, RAIL_HEIGHT, length));
-        
+
         RenderMesh(meshes[stripeNames[i]], shaders["VertexColor"], modelMatrix);
     }
 }
@@ -564,34 +567,34 @@ void Tema1::RenderTunnelRail(glm::vec3 start, glm::vec3 end)
     // Tunnel rail: 4 transversal colored stripes (perpendicular to the length)
     const float RAIL_WIDTH = 0.3f;
     const float RAIL_HEIGHT = 0.1f;
-    
+
     glm::vec3 direction = end - start;
     float length = glm::length(direction);
     direction = glm::normalize(direction);
-    
+
     // Calculate rotation angle (around Y axis)
     float angle = atan2(direction.x, direction.z);
-    
+
     // Divide the rail into 4 segments along its length
     const float SEGMENT_LENGTH = length / 4.0f;
-    
+
     const char* stripeNames[] = {
         "rail_tunnel_stripe1",
         "rail_tunnel_stripe2",
         "rail_tunnel_stripe3",
         "rail_tunnel_stripe4"
     };
-    
+
     // Render 4 stripes one after another (transversal)
     for (int i = 0; i < 4; i++) {
         float t = (i + 0.5f) / 4.0f;  // Center of each segment: 0.125, 0.375, 0.625, 0.875
         glm::vec3 segmentCenter = start + direction * (t * length);
-        
+
         glm::mat4 modelMatrix = glm::mat4(1);
         modelMatrix = glm::translate(modelMatrix, segmentCenter);
         modelMatrix = glm::rotate(modelMatrix, angle, glm::vec3(0, 1, 0));
         modelMatrix = glm::scale(modelMatrix, glm::vec3(RAIL_WIDTH, RAIL_HEIGHT, SEGMENT_LENGTH));
-        
+
         RenderMesh(meshes[stripeNames[i]], shaders["VertexColor"], modelMatrix);
     }
 }
@@ -599,35 +602,34 @@ void Tema1::RenderTunnelRail(glm::vec3 start, glm::vec3 end)
 void Tema1::RenderRail(Rail* rail)
 {
     if (!rail) return;
-    
-    // FIRST: Render terrain under this rail
+
+    // NO terrain rendering under rails anymore - terrain is rendered separately
     RenderTerrainUnderRail(rail);
-    
-    // THEN: Render the rail on top
+    // Render the rail
     // Handle junction rails specially
     if (rail->isJunction()) {
         RenderJunctionRail(rail);
         return;
     }
-    
+
     // Determine terrain type based on rail position
     glm::vec3 midPoint = (rail->startPosition + rail->endPosition) * 0.5f;
     RailType terrainType = DetermineTerrainType(midPoint);
-    
+
     // Render based on terrain type
     switch (terrainType) {
-        case RailType::NORMAL:
-            RenderNormalRail(rail->startPosition, rail->endPosition);
-            break;
-        case RailType::BRIDGE:
-            RenderBridgeRail(rail->startPosition, rail->endPosition);
-            break;
-        case RailType::TUNNEL:
-            RenderTunnelRail(rail->startPosition, rail->endPosition);
-            break;
-        default:
-            RenderNormalRail(rail->startPosition, rail->endPosition);
-            break;
+    case RailType::NORMAL:
+        RenderNormalRail(rail->startPosition, rail->endPosition);
+        break;
+    case RailType::BRIDGE:
+        RenderBridgeRail(rail->startPosition, rail->endPosition);
+        break;
+    case RailType::TUNNEL:
+        RenderTunnelRail(rail->startPosition, rail->endPosition);
+        break;
+    default:
+        RenderNormalRail(rail->startPosition, rail->endPosition);
+        break;
     }
 }
 
@@ -644,16 +646,16 @@ void Tema1::InitializeRailNetwork()
     // Create a rail network with ONLY straight segments (no diagonals)
     // Rails are either horizontal (East-West) or vertical (North-South)
     const float RAIL_Y = 0.05f;
-    
+
     // Clear any existing rails
     for (Rail* rail : railNetwork) {
         delete rail;
     }
     railNetwork.clear();
-    
+
     // ===== MAIN LOOP WITH INTERSECTIONS =====
     // Rectangular loop that crosses water and goes near mountains
-    
+
     // SEGMENT 1: Start at bottom-right, going WEST
     Rail* rail1 = new Rail(
         glm::vec3(15, RAIL_Y, -10),
@@ -661,7 +663,7 @@ void Tema1::InitializeRailNetwork()
         RailType::NORMAL
     );
     railNetwork.push_back(rail1);
-    
+
     // SEGMENT 2: Turn NORTH (approaching river)
     Rail* rail2 = new Rail(
         glm::vec3(5, RAIL_Y, -10),
@@ -670,7 +672,7 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(rail2);
     rail1->children.push_back(rail2);
-    
+
     // SEGMENT 3: BRIDGE over river (NORTH, through water Z: -4 to 4)
     Rail* rail3 = new Rail(
         glm::vec3(5, RAIL_Y, -4),
@@ -679,7 +681,7 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(rail3);
     rail2->children.push_back(rail3);
-    
+
     // SEGMENT 4: Continue NORTH on plains after bridge
     Rail* rail4 = new Rail(
         glm::vec3(5, RAIL_Y, 4),
@@ -688,7 +690,7 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(rail4);
     rail3->children.push_back(rail4);
-    
+
     // ===== JUNCTION 1: T-Junction (3-way) =====
     // Position: (5, 10) - player can go WEST (main) or NORTH (branch to mountains)
     Rail* junction1 = new Rail(
@@ -698,7 +700,7 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(junction1);
     rail4->children.push_back(junction1);
-    
+
     // BRANCH 1A from Junction 1: Go WEST (main path)
     Rail* rail5 = new Rail(
         glm::vec3(5, RAIL_Y, 10),
@@ -707,7 +709,7 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(rail5);
     junction1->children.push_back(rail5);
-    
+
     // BRANCH 1B from Junction 1: Go NORTH into mountains
     Rail* railBranch1 = new Rail(
         glm::vec3(5, RAIL_Y, 10),
@@ -716,7 +718,7 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(railBranch1);
     junction1->children.push_back(railBranch1);
-    
+
     // Branch 1B continues: TUNNEL through northeast mountains (going NORTH)
     // Northeast mountains: X in [4, 20], Z in [12, 20]
     Rail* railBranch2 = new Rail(
@@ -726,7 +728,7 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(railBranch2);
     railBranch1->children.push_back(railBranch2);
-    
+
     // Branch 1B: Turn WEST in mountains
     Rail* railBranch3 = new Rail(
         glm::vec3(5, RAIL_Y, 18),
@@ -735,7 +737,7 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(railBranch3);
     railBranch2->children.push_back(railBranch3);
-    
+
     // Branch 1B: Turn SOUTH, exiting mountains (northwest mountains)
     Rail* railBranch4 = new Rail(
         glm::vec3(-5, RAIL_Y, 18),
@@ -744,7 +746,7 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(railBranch4);
     railBranch3->children.push_back(railBranch4);
-    
+
     // Branch 1B: Continue SOUTH on plains
     Rail* railBranch5 = new Rail(
         glm::vec3(-5, RAIL_Y, 15),
@@ -753,10 +755,10 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(railBranch5);
     railBranch4->children.push_back(railBranch5);
-    
+
     // Rejoin main path at rail5 endpoint
     railBranch5->children.push_back(rail5);
-    
+
     // Continue main path: SEGMENT 6 - Turn SOUTH
     Rail* rail6 = new Rail(
         glm::vec3(-5, RAIL_Y, 10),
@@ -765,7 +767,7 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(rail6);
     rail5->children.push_back(rail6);
-    
+
     // SEGMENT 7: BRIDGE over river (going SOUTH)
     Rail* rail7 = new Rail(
         glm::vec3(-5, RAIL_Y, 4),
@@ -774,7 +776,7 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(rail7);
     rail6->children.push_back(rail7);
-    
+
     // ===== JUNCTION 2: L-Junction (2-way, 90 degrees) =====
     // Position: (-5, -4) - player can go SOUTH (main) or WEST (branch to SW mountains)
     Rail* junction2 = new Rail(
@@ -784,7 +786,7 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(junction2);
     rail7->children.push_back(junction2);
-    
+
     // BRANCH 2A from Junction 2: Continue SOUTH (main path)
     Rail* rail8 = new Rail(
         glm::vec3(-5, RAIL_Y, -4),
@@ -793,7 +795,7 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(rail8);
     junction2->children.push_back(rail8);
-    
+
     // BRANCH 2B from Junction 2: Go WEST toward southwest mountains
     Rail* railBranch2A = new Rail(
         glm::vec3(-5, RAIL_Y, -4),
@@ -802,7 +804,7 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(railBranch2A);
     junction2->children.push_back(railBranch2A);
-    
+
     // Branch 2B: Turn SOUTH into mountains
     Rail* railBranch2B = new Rail(
         glm::vec3(-10, RAIL_Y, -4),
@@ -811,7 +813,7 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(railBranch2B);
     railBranch2A->children.push_back(railBranch2B);
-    
+
     // Branch 2B: TUNNEL through southwest mountains
     // Southwest mountains: X in [-20, -4], Z in [-20, -12]
     Rail* railBranch2C = new Rail(
@@ -821,7 +823,7 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(railBranch2C);
     railBranch2B->children.push_back(railBranch2C);
-    
+
     // Branch 2B: Turn EAST in mountains
     Rail* railBranch2D = new Rail(
         glm::vec3(-10, RAIL_Y, -18),
@@ -830,7 +832,7 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(railBranch2D);
     railBranch2C->children.push_back(railBranch2D);
-    
+
     // Branch 2B: Turn NORTH, exiting mountains (SE mountains area)
     Rail* railBranch2E = new Rail(
         glm::vec3(5, RAIL_Y, -18),
@@ -839,7 +841,7 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(railBranch2E);
     railBranch2D->children.push_back(railBranch2E);
-    
+
     // Branch 2B: Continue NORTH on plains
     Rail* railBranch2F = new Rail(
         glm::vec3(5, RAIL_Y, -15),
@@ -848,7 +850,7 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(railBranch2F);
     railBranch2E->children.push_back(railBranch2F);
-    
+
     // Branch 2B: Turn WEST to rejoin
     Rail* railBranch2G = new Rail(
         glm::vec3(5, RAIL_Y, -10),
@@ -857,10 +859,10 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(railBranch2G);
     railBranch2F->children.push_back(railBranch2G);
-    
+
     // Connect branch back to main path
     railBranch2G->children.push_back(rail8);
-    
+
     // Continue main path: SEGMENT 9 - Go EAST to complete loop
     Rail* rail9 = new Rail(
         glm::vec3(-5, RAIL_Y, -10),
@@ -869,7 +871,7 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(rail9);
     rail8->children.push_back(rail9);
-    
+
     // SEGMENT 10: Continue EAST
     Rail* rail10 = new Rail(
         glm::vec3(5, RAIL_Y, -10),
@@ -878,10 +880,10 @@ void Tema1::InitializeRailNetwork()
     );
     railNetwork.push_back(rail10);
     rail9->children.push_back(rail10);
-    
+
     // CLOSE THE LOOP - connect back to start
     rail10->children.push_back(rail1);
-    
+
     // Initialize train at the start
     train.currentRail = rail1;
     train.progress = 0.0f;
@@ -897,34 +899,34 @@ void Tema1::HandleJunctionInput(int key)
 {
     if (!train.stopped || !train.currentRail) return;
     if (!train.currentRail->isJunction()) return;
-    
+
     int numChildren = train.currentRail->children.size();
     if (numChildren == 0) return;
-    
+
     // Get train's current direction
     glm::vec3 trainDir = glm::normalize(glm::vec3(
         sin(train.angle),
         0,
         cos(train.angle)
     ));
-    
+
     int selectedIndex = -1;
-    
+
     // Calculate angles of each child rail relative to train's direction
     std::vector<std::pair<int, float>> childAngles;  // index, angle
-    
+
     for (int i = 0; i < numChildren; i++) {
         Rail* child = train.currentRail->children[i];
         glm::vec3 childDir = glm::normalize(child->endPosition - child->startPosition);
-        
+
         // Calculate angle between train direction and child direction
         float dot = glm::dot(trainDir, childDir);
         float cross = trainDir.x * childDir.z - trainDir.z * childDir.x;
         float angle = atan2(cross, dot);
-        
-        childAngles.push_back({i, angle});
+
+        childAngles.push_back({ i, angle });
     }
-    
+
     // Interpret WASD based on train's perspective
     if (key == GLFW_KEY_W) {
         // Forward - choose rail most aligned with current direction (angle closest to 0)
@@ -965,23 +967,23 @@ void Tema1::HandleJunctionInput(int key)
             }
         }
     }
-    
+
     // Validate and apply selection
     if (selectedIndex >= 0 && selectedIndex < numChildren) {
         train.currentRail = train.currentRail->children[selectedIndex];
         train.progress = 0.0f;
         train.stopped = false;
         train.selectedDirection = -1;
-        
-        std::cout << "Selected direction: " << (key == GLFW_KEY_W ? "Forward" : 
-                                                 key == GLFW_KEY_A ? "Left" : "Right") << std::endl;
+
+        std::cout << "Selected direction: " << (key == GLFW_KEY_W ? "Forward" :
+            key == GLFW_KEY_A ? "Left" : "Right") << std::endl;
     }
 }
 
 void Tema1::UpdateTrainMovement(float deltaTime)
 {
     if (!train.currentRail || train.stopped) return;
-    
+
     // Move train along current rail
     float railLength = train.currentRail->getLength();
     if (railLength == 0) {
@@ -991,14 +993,14 @@ void Tema1::UpdateTrainMovement(float deltaTime)
         std::cout << "Train stopped at junction. Use W (forward), A (left), or D (right) to choose direction." << std::endl;
         return;
     }
-    
+
     train.progress += (train.speed * deltaTime) / railLength;
-    
+
     // Check if train reached end of rail
     if (train.progress >= 1.0f) {
         train.progress = 1.0f;
         train.position = train.currentRail->endPosition;
-        
+
         // Move to next rail
         Rail* nextRail = train.currentRail->getNext();
         if (nextRail) {
@@ -1011,23 +1013,25 @@ void Tema1::UpdateTrainMovement(float deltaTime)
                 train.stopped = true;
                 std::cout << "Train stopped at junction. Use W (forward), A (left), or D (right) to choose direction." << std::endl;
                 return;
-            } else {
+            }
+            else {
                 // Move to next rail segment
                 train.currentRail = nextRail;
                 train.progress = 0.0f;
             }
-        } else {
+        }
+        else {
             // No next rail, stop
             train.stopped = true;
             std::cout << "End of track reached." << std::endl;
             return;
         }
     }
-    
+
     // Calculate current position by interpolation
-    train.position = train.currentRail->startPosition + 
-                     (train.currentRail->endPosition - train.currentRail->startPosition) * train.progress;
-    
+    train.position = train.currentRail->startPosition +
+        (train.currentRail->endPosition - train.currentRail->startPosition) * train.progress;
+
     // Calculate train angle from direction
     glm::vec3 direction = train.currentRail->getDirection();
     train.angle = CalculateTrainAngle(direction);
@@ -1040,32 +1044,32 @@ RailType Tema1::DetermineTerrainType(glm::vec3 position)
     if (position.z >= -4.0f && position.z <= 4.0f) {
         return RailType::BRIDGE;
     }
-    
+
     // Check if position is in mountain zones
     // Northwest mountains: X in [-20, -4], Z in [12, 20]
-    if (position.x >= -20.0f && position.x <= -4.0f && 
+    if (position.x >= -20.0f && position.x <= -4.0f &&
         position.z >= 12.0f && position.z <= 20.0f) {
         return RailType::TUNNEL;
     }
-    
+
     // Northeast mountains: X in [4, 20], Z in [12, 20]
-    if (position.x >= 4.0f && position.x <= 20.0f && 
+    if (position.x >= 4.0f && position.x <= 20.0f &&
         position.z >= 12.0f && position.z <= 20.0f) {
         return RailType::TUNNEL;
     }
-    
+
     // Southwest mountains: X in [-20, -4], Z in [-20, -12]
-    if (position.x >= -20.0f && position.x <= -4.0f && 
+    if (position.x >= -20.0f && position.x <= -4.0f &&
         position.z >= -20.0f && position.z <= -12.0f) {
         return RailType::TUNNEL;
     }
-    
+
     // Southeast mountains: X in [4, 20], Z in [-20, -12]
-    if (position.x >= 4.0f && position.x <= 20.0f && 
+    if (position.x >= 4.0f && position.x <= 20.0f &&
         position.z >= -20.0f && position.z <= -12.0f) {
         return RailType::TUNNEL;
     }
-    
+
     // Default: plains
     return RailType::NORMAL;
 }
@@ -1073,13 +1077,13 @@ RailType Tema1::DetermineTerrainType(glm::vec3 position)
 void Tema1::RenderJunctionRail(Rail* rail)
 {
     if (!rail) return;
-    
+
     const float RAIL_WIDTH = 0.3f;
     const float RAIL_HEIGHT = 0.1f;
     const float JUNCTION_SIZE = 0.8f;  // Size of junction intersection
-    
+
     glm::vec3 center = rail->startPosition;  // Junction is a point
-    
+
     // Render different shapes based on junction type
     if (rail->type == RailType::JUNCTION_T) {
         // T-junction: 3 arms
@@ -1089,7 +1093,7 @@ void Tema1::RenderJunctionRail(Rail* rail)
         modelMatrix = glm::translate(modelMatrix, center);
         modelMatrix = glm::scale(modelMatrix, glm::vec3(JUNCTION_SIZE, RAIL_HEIGHT, RAIL_WIDTH));
         RenderMesh(meshes["rail_normal"], shaders["VertexColor"], modelMatrix);
-        
+
         // Render vertical arm
         modelMatrix = glm::mat4(1);
         modelMatrix = glm::translate(modelMatrix, center);
@@ -1103,7 +1107,7 @@ void Tema1::RenderJunctionRail(Rail* rail)
         modelMatrix = glm::translate(modelMatrix, center);
         modelMatrix = glm::scale(modelMatrix, glm::vec3(JUNCTION_SIZE, RAIL_HEIGHT, RAIL_WIDTH));
         RenderMesh(meshes["rail_normal"], shaders["VertexColor"], modelMatrix);
-        
+
         // Vertical bar
         modelMatrix = glm::mat4(1);
         modelMatrix = glm::translate(modelMatrix, center);
@@ -1117,7 +1121,7 @@ void Tema1::RenderJunctionRail(Rail* rail)
         modelMatrix = glm::translate(modelMatrix, center + glm::vec3(JUNCTION_SIZE / 4, 0, 0));
         modelMatrix = glm::scale(modelMatrix, glm::vec3(JUNCTION_SIZE / 2, RAIL_HEIGHT, RAIL_WIDTH));
         RenderMesh(meshes["rail_normal"], shaders["VertexColor"], modelMatrix);
-        
+
         // Vertical arm
         modelMatrix = glm::mat4(1);
         modelMatrix = glm::translate(modelMatrix, center + glm::vec3(0, 0, JUNCTION_SIZE / 4));
@@ -1126,28 +1130,120 @@ void Tema1::RenderJunctionRail(Rail* rail)
     }
 }
 
+void Tema1::RenderFullTerrain()
+{
+    // Render terrain grid covering the entire map
+    // Map boundaries based on your rail network: approximately X: [-20, 20], Z: [-20, 20]
+    const float MAP_MIN_X = -25.0f;
+    const float MAP_MAX_X = 25.0f;
+    const float MAP_MIN_Z = -25.0f;
+    const float MAP_MAX_Z = 25.0f;
+    const float TILE_SIZE = 2.0f;  // Size of each terrain tile
+
+    // Calculate number of tiles
+    int tilesX = (int)((MAP_MAX_X - MAP_MIN_X) / TILE_SIZE);
+    int tilesZ = (int)((MAP_MAX_Z - MAP_MIN_Z) / TILE_SIZE);
+
+    // Render each tile
+    for (int ix = 0; ix < tilesX; ix++) {
+        for (int iz = 0; iz < tilesZ; iz++) {
+            float x1 = MAP_MIN_X + ix * TILE_SIZE;
+            float x2 = x1 + TILE_SIZE;
+            float z1 = MAP_MIN_Z + iz * TILE_SIZE;
+            float z2 = z1 + TILE_SIZE;
+
+            // Use center point to determine terrain type
+            glm::vec3 centerPoint(
+                (x1 + x2) * 0.5f,
+                0.0f,
+                (z1 + z2) * 0.5f
+            );
+
+            RailType terrainType = DetermineTerrainType(centerPoint);
+
+            // Determine color and Y level based on terrain type
+            glm::vec3 color;
+            float terrainY;
+
+            if (terrainType == RailType::BRIDGE) {
+                color = glm::vec3(0.2f, 0.4f, 0.9f);  // Blue for water
+                terrainY = -0.79f;
+            }
+            else if (terrainType == RailType::TUNNEL) {
+                color = glm::vec3(0.6f, 0.4f, 0.2f);  // Brown for mountains
+                terrainY = -0.6f;
+            }
+            else {
+                color = glm::vec3(0.2f, 0.8f, 0.2f);  // Green for plains
+                terrainY = -0.8f;
+            }
+
+            // Create 4 corners of the tile
+            std::vector<VertexFormat> vertices = {
+                VertexFormat(glm::vec3(x1, terrainY, z1), color, glm::vec3(0, 1, 0), glm::vec2(0, 0)),
+                VertexFormat(glm::vec3(x2, terrainY, z1), color, glm::vec3(0, 1, 0), glm::vec2(1, 0)),
+                VertexFormat(glm::vec3(x2, terrainY, z2), color, glm::vec3(0, 1, 0), glm::vec2(1, 1)),
+                VertexFormat(glm::vec3(x1, terrainY, z2), color, glm::vec3(0, 1, 0), glm::vec2(0, 1))
+            };
+            std::vector<unsigned int> indices = { 0, 1, 2, 0, 2, 3 };
+
+            // Create temporary mesh and render
+            unsigned int VAO = 0;
+            glGenVertexArrays(1, &VAO);
+            glBindVertexArray(VAO);
+
+            unsigned int VBO = 0;
+            glGenBuffers(1, &VBO);
+            glBindBuffer(GL_ARRAY_BUFFER, VBO);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(vertices[0]) * vertices.size(), &vertices[0], GL_STATIC_DRAW);
+
+            unsigned int IBO = 0;
+            glGenBuffers(1, &IBO);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBO);
+            glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices[0]) * indices.size(), &indices[0], GL_STATIC_DRAW);
+
+            glEnableVertexAttribArray(0);
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(VertexFormat), 0);
+            glEnableVertexAttribArray(1);
+            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(VertexFormat), (void*)(sizeof(glm::vec3)));
+            glEnableVertexAttribArray(2);
+            glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(VertexFormat), (void*)(2 * sizeof(glm::vec3)));
+            glEnableVertexAttribArray(3);
+            glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(VertexFormat), (void*)(2 * sizeof(glm::vec3) + sizeof(glm::vec2)));
+
+            Mesh tempMesh("temp_terrain_tile");
+            tempMesh.InitFromBuffer(VAO, static_cast<unsigned int>(indices.size()));
+            RenderMesh(&tempMesh, shaders["VertexColor"], glm::mat4(1));
+
+            glDeleteBuffers(1, &VBO);
+            glDeleteBuffers(1, &IBO);
+            glDeleteVertexArrays(1, &VAO);
+        }
+    }
+}
+
 void Tema1::RenderTerrainUnderRail(Rail* rail)
 {
     if (!rail) return;
-    
+
     // For junctions, render a small square
     if (rail->isJunction()) {
         glm::vec3 center = rail->startPosition;
         const float JUNCTION_TILE_SIZE = 0.8f;
-        
+
         // Always render plains under junctions
         glm::vec3 colorPlains(0.2f, 0.8f, 0.2f);
         const float PLAINS_Y = -0.5f;
-        
+
         // Create a small quad under junction
         std::vector<VertexFormat> vertices = {
-            VertexFormat(glm::vec3(center.x - JUNCTION_TILE_SIZE/2, PLAINS_Y, center.z - JUNCTION_TILE_SIZE/2), colorPlains, glm::vec3(0, 1, 0), glm::vec2(0, 0)),
-            VertexFormat(glm::vec3(center.x + JUNCTION_TILE_SIZE/2, PLAINS_Y, center.z - JUNCTION_TILE_SIZE/2), colorPlains, glm::vec3(0, 1, 0), glm::vec2(1, 0)),
-            VertexFormat(glm::vec3(center.x + JUNCTION_TILE_SIZE/2, PLAINS_Y, center.z + JUNCTION_TILE_SIZE/2), colorPlains, glm::vec3(0, 1, 0), glm::vec2(1, 1)),
-            VertexFormat(glm::vec3(center.x - JUNCTION_TILE_SIZE/2, PLAINS_Y, center.z + JUNCTION_TILE_SIZE/2), colorPlains, glm::vec3(0, 1, 0), glm::vec2(0, 1))
+            VertexFormat(glm::vec3(center.x - JUNCTION_TILE_SIZE / 2, PLAINS_Y, center.z - JUNCTION_TILE_SIZE / 2), colorPlains, glm::vec3(0, 1, 0), glm::vec2(0, 0)),
+            VertexFormat(glm::vec3(center.x + JUNCTION_TILE_SIZE / 2, PLAINS_Y, center.z - JUNCTION_TILE_SIZE / 2), colorPlains, glm::vec3(0, 1, 0), glm::vec2(1, 0)),
+            VertexFormat(glm::vec3(center.x + JUNCTION_TILE_SIZE / 2, PLAINS_Y, center.z + JUNCTION_TILE_SIZE / 2), colorPlains, glm::vec3(0, 1, 0), glm::vec2(1, 1)),
+            VertexFormat(glm::vec3(center.x - JUNCTION_TILE_SIZE / 2, PLAINS_Y, center.z + JUNCTION_TILE_SIZE / 2), colorPlains, glm::vec3(0, 1, 0), glm::vec2(0, 1))
         };
-        std::vector<unsigned int> indices = {0, 1, 2, 0, 2, 3};
-        
+        std::vector<unsigned int> indices = { 0, 1, 2, 0, 2, 3 };
+
         // Create temporary mesh and render
         unsigned int VAO = 0;
         glGenVertexArrays(1, &VAO);
@@ -1175,56 +1271,58 @@ void Tema1::RenderTerrainUnderRail(Rail* rail)
         Mesh tempMesh("temp_junction_terrain");
         tempMesh.InitFromBuffer(VAO, static_cast<unsigned int>(indices.size()));
         RenderMesh(&tempMesh, shaders["VertexColor"], glm::mat4(1));
-        
+
         glDeleteBuffers(1, &VBO);
         glDeleteBuffers(1, &IBO);
         glDeleteVertexArrays(1, &VAO);
         return;
     }
-    
+
     // For regular rails, render a rectangle matching rail dimensions
     glm::vec3 start = rail->startPosition;
     glm::vec3 end = rail->endPosition;
     glm::vec3 direction = glm::normalize(end - start);
     float length = glm::length(end - start);
-    
+
     // Determine terrain type based on rail position
     glm::vec3 midPoint = (start + end) * 0.5f;
     RailType terrainType = DetermineTerrainType(midPoint);
-    
+
     // Terrain colors and Y levels
     glm::vec3 color;
     float terrainY;
-    
+
     if (terrainType == RailType::BRIDGE) {
         color = glm::vec3(0.2f, 0.4f, 0.9f);  // Blue for water
-        terrainY = -0.49f;
-    } else if (terrainType == RailType::TUNNEL) {
+        terrainY = -0.6f;
+    }
+    else if (terrainType == RailType::TUNNEL) {
         color = glm::vec3(0.6f, 0.4f, 0.2f);  // Brown for mountains
         terrainY = -0.3f;
-    } else {
+    }
+    else {
         color = glm::vec3(0.2f, 0.8f, 0.2f);  // Green for plains
         terrainY = -0.5f;
     }
-    
+
     // Width of terrain tile - make it slightly wider than rail
     const float TILE_WIDTH = 1.0f;
-    
+
     // Calculate perpendicular direction (for width)
     glm::vec3 perpendicular = glm::normalize(glm::vec3(-direction.z, 0, direction.x));
-    
+
     // Create 4 corners of the rectangle
     glm::vec3 p1 = start + perpendicular * (TILE_WIDTH / 2);
     glm::vec3 p2 = start - perpendicular * (TILE_WIDTH / 2);
     glm::vec3 p3 = end - perpendicular * (TILE_WIDTH / 2);
     glm::vec3 p4 = end + perpendicular * (TILE_WIDTH / 2);
-    
+
     // Set Y coordinate to terrain level
     p1.y = terrainY;
     p2.y = terrainY;
     p3.y = terrainY;
     p4.y = terrainY;
-    
+
     // Create vertices
     std::vector<VertexFormat> vertices = {
         VertexFormat(p1, color, glm::vec3(0, 1, 0), glm::vec2(0, 0)),
@@ -1232,8 +1330,8 @@ void Tema1::RenderTerrainUnderRail(Rail* rail)
         VertexFormat(p3, color, glm::vec3(0, 1, 0), glm::vec2(1, 1)),
         VertexFormat(p4, color, glm::vec3(0, 1, 0), glm::vec2(0, 1))
     };
-    std::vector<unsigned int> indices = {0, 1, 2, 0, 2, 3};
-    
+    std::vector<unsigned int> indices = { 0, 1, 2, 0, 2, 3 };
+
     // Create temporary mesh and render
     unsigned int VAO = 0;
     glGenVertexArrays(1, &VAO);
@@ -1261,7 +1359,7 @@ void Tema1::RenderTerrainUnderRail(Rail* rail)
     Mesh tempMesh("temp_rail_terrain");
     tempMesh.InitFromBuffer(VAO, static_cast<unsigned int>(indices.size()));
     RenderMesh(&tempMesh, shaders["VertexColor"], glm::mat4(1));
-    
+
     glDeleteBuffers(1, &VBO);
     glDeleteBuffers(1, &IBO);
     glDeleteVertexArrays(1, &VAO);

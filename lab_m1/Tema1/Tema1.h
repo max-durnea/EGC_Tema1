@@ -22,6 +22,7 @@ namespace m1
     
     // Direction enum for straight rails
     enum class RailDirection {
+        NONE,         // No direction (for junctions)
         NORTH_SOUTH,  // Vertical (Z-axis)
         EAST_WEST     // Horizontal (X-axis)
     };
@@ -116,7 +117,6 @@ namespace m1
         // Functions to render train components
         void RenderLocomotive(glm::vec3 position, float angle);
         void RenderWagon(glm::vec3 position, float angle);  // Not currently used
-        void RenderStation(glm::vec3 position, float angle, const std::string& type);
 
         // Rail rendering functions
         void RenderRail(Rail* rail);
@@ -125,6 +125,7 @@ namespace m1
         void RenderTunnelRail(glm::vec3 start, glm::vec3 end);
         void RenderJunctionRail(Rail* rail);
         void RenderTerrainUnderRail(Rail* rail);
+        void RenderFullTerrain();
         RailType DetermineTerrainType(glm::vec3 position);
 
         // Rail system functions
