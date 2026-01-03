@@ -10,22 +10,59 @@ namespace m1
 {
     // === RAIL SYSTEM STRUCTURES ===
 
+    // Rail types based on terrain
+    enum class RailType {
+        NORMAL,      // Normal rails on plains (black parallelepipeds)
+        BRIDGE,      // Bridge rails over water (4 longitudinal colored stripes)
+        TUNNEL,      // Tunnel rails through mountains (4 transversal colored stripes)
+        JUNCTION_T,  // T-junction (3 exits)
+        JUNCTION_CROSS, // Cross junction (4 exits)
+        JUNCTION_L   // L-junction (2 exits at 90 degrees)
+    };
+    
+    // Direction enum for straight rails
+    enum class RailDirection {
+        NORTH_SOUTH,  // Vertical (Z-axis)
+        EAST_WEST     // Horizontal (X-axis)
+    };
+
     // Rail segment - represents a piece of track between two points
     struct Rail {
         glm::vec3 startPosition;
         glm::vec3 endPosition;
-        std::vector<Rail*> children;  // For junctions (0, 1, or multiple children)
+        RailType type;                   // Visual type of rail
+        RailDirection direction;         // Direction for straight rails
+        std::vector<Rail*> children;     // For junctions (0, 1, or multiple children)
 
-        Rail(glm::vec3 start, glm::vec3 end)
-            : startPosition(start), endPosition(end) {
+        Rail(glm::vec3 start, glm::vec3 end, RailType railType = RailType::NORMAL)
+            : startPosition(start), endPosition(end), type(railType) {
+            // Auto-detect direction based on start/end positions
+            float dx = abs(end.x - start.x);
+            float dz = abs(end.z - start.z);
+            direction = (dx > dz) ? RailDirection::EAST_WEST : RailDirection::NORTH_SOUTH;
         }
 
         // Check if this is a junction (has multiple children)
-        bool isJunction() const { return children.size() > 1; }
+        bool isJunction() const { 
+            return type == RailType::JUNCTION_T || 
+                   type == RailType::JUNCTION_CROSS || 
+                   type == RailType::JUNCTION_L ||
+                   children.size() > 1; 
+        }
 
         // Get next rail (single child or first child)
         Rail* getNext() const {
             return children.empty() ? nullptr : children[0];
+        }
+        
+        // Get length of this rail segment
+        float getLength() const {
+            return glm::length(endPosition - startPosition);
+        }
+        
+        // Get direction vector (normalized)
+        glm::vec3 getDirection() const {
+            return glm::normalize(endPosition - startPosition);
         }
     };
 
@@ -80,6 +117,15 @@ namespace m1
         void RenderLocomotive(glm::vec3 position, float angle);
         void RenderWagon(glm::vec3 position, float angle);  // Not currently used
         void RenderStation(glm::vec3 position, float angle, const std::string& type);
+
+        // Rail rendering functions
+        void RenderRail(Rail* rail);
+        void RenderNormalRail(glm::vec3 start, glm::vec3 end);
+        void RenderBridgeRail(glm::vec3 start, glm::vec3 end);
+        void RenderTunnelRail(glm::vec3 start, glm::vec3 end);
+        void RenderJunctionRail(Rail* rail);
+        void RenderTerrainUnderRail(Rail* rail);
+        RailType DetermineTerrainType(glm::vec3 position);
 
         // Rail system functions
         void InitializeRailNetwork();

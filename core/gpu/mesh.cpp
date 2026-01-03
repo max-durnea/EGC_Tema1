@@ -22,6 +22,11 @@ Mesh::Mesh(std::string meshID)
     useMaterial = true;
     glDrawMode = GL_TRIANGLES;
     buffers = new GPUBuffers();
+    
+    // Initialize animation-related pointers to prevent garbage values
+    anim = nullptr;
+    rootNode = nullptr;
+    numAnim = 0;
 }
 
 
@@ -31,8 +36,15 @@ Mesh::~Mesh()
     meshEntries.clear();
     SAFE_FREE(buffers);
 
-    ClearAnimations(anim, numAnim);
-    ClearRootNode(rootNode);
+    // Only clear animations if they were allocated
+    if (anim != nullptr && numAnim > 0) {
+        ClearAnimations(anim, numAnim);
+    }
+    
+    // Only clear root node if it was allocated
+    if (rootNode != nullptr) {
+        ClearRootNode(rootNode);
+    }
 }
 
 
