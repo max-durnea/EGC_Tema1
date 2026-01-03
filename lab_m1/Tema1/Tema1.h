@@ -1,7 +1,7 @@
-#pragma once
+﻿#pragma once
 
 #include "components/simple_scene.h"
-#include <vector> 
+#include <vector>
 #include "utils/glm_utils.h"
 #include "lab_m1/Tema1/text_renderer.h"
 #include <queue>
@@ -12,14 +12,14 @@ namespace m1
 
     // Rail types based on terrain
     enum class RailType {
-        NORMAL,      // Normal rails on plains (black parallelepipeds)
-        BRIDGE,      // Bridge rails over water (4 longitudinal colored stripes)
-        TUNNEL,      // Tunnel rails through mountains (4 transversal colored stripes)
-        JUNCTION_T,  // T-junction (3 exits)
+        NORMAL,         // Normal rails on plains (black parallelepipeds)
+        BRIDGE,         // Bridge rails over water (4 longitudinal colored stripes)
+        TUNNEL,         // Tunnel rails through mountains (4 transversal colored stripes)
+        JUNCTION_T,     // T-junction (3 exits)
         JUNCTION_CROSS, // Cross junction (4 exits)
-        JUNCTION_L   // L-junction (2 exits at 90 degrees)
+        JUNCTION_L      // L-junction (2 exits at 90 degrees)
     };
-    
+
     // Direction enum for straight rails
     enum class RailDirection {
         NONE,         // No direction (for junctions)
@@ -44,23 +44,23 @@ namespace m1
         }
 
         // Check if this is a junction (has multiple children)
-        bool isJunction() const { 
-            return type == RailType::JUNCTION_T || 
-                   type == RailType::JUNCTION_CROSS || 
-                   type == RailType::JUNCTION_L ||
-                   children.size() > 1; 
+        bool isJunction() const {
+            return type == RailType::JUNCTION_T ||
+                type == RailType::JUNCTION_CROSS ||
+                type == RailType::JUNCTION_L ||
+                children.size() > 1;
         }
 
         // Get next rail (single child or first child)
         Rail* getNext() const {
             return children.empty() ? nullptr : children[0];
         }
-        
+
         // Get length of this rail segment
         float getLength() const {
             return glm::length(endPosition - startPosition);
         }
-        
+
         // Get direction vector (normalized)
         glm::vec3 getDirection() const {
             return glm::normalize(endPosition - startPosition);
@@ -78,9 +78,19 @@ namespace m1
         int selectedDirection;       // Which direction to take at junction (-1 = none)
         int queuedDirection;         // Next desired direction chosen by player (-1 = none)
 
-        Train() : currentRail(nullptr), progress(0.0f), speed(1.0f),
-            position(0, 0, 0), angle(0), stopped(false), selectedDirection(-1),
-            queuedDirection(-1) {
+        // ✅ NEW: direction with which we entered the current junction
+        glm::vec3 incomingDir;
+
+        Train()
+            : currentRail(nullptr),
+            progress(0.0f),
+            speed(1.0f),
+            position(0, 0, 0),
+            angle(0),
+            stopped(false),
+            selectedDirection(-1),
+            queuedDirection(-1),
+            incomingDir(0, 0, 1) {
         }
     };
 
@@ -116,7 +126,7 @@ namespace m1
 
         // Functions to render train components
         void RenderLocomotive(glm::vec3 position, float angle);
-        void RenderWagon(glm::vec3 position, float angle);  // Not currently used
+        void RenderWagon(glm::vec3 position, float angle);
 
         // Rail rendering functions
         void RenderRail(Rail* rail);
@@ -139,14 +149,13 @@ namespace m1
 
         // Train and rail data
         Train train;
-        std::vector<Rail*> railNetwork;  // All rail segments
+        std::vector<Rail*> railNetwork;
     };
 };   // namespace m1
 
 
 namespace transform3D
 {
-    // Translate matrix
     inline glm::mat4 Translate(float translateX, float translateY, float translateZ)
     {
         return glm::mat4(
@@ -157,7 +166,6 @@ namespace transform3D
         );
     }
 
-    // Scale matrix
     inline glm::mat4 Scale(float scaleX, float scaleY, float scaleZ)
     {
         return glm::mat4(
@@ -168,7 +176,6 @@ namespace transform3D
         );
     }
 
-    // Rotate matrix around X axis
     inline glm::mat4 RotateOX(float radians)
     {
         return glm::mat4(
@@ -179,7 +186,6 @@ namespace transform3D
         );
     }
 
-    // Rotate matrix around Y axis
     inline glm::mat4 RotateOY(float radians)
     {
         return glm::mat4(
@@ -190,7 +196,6 @@ namespace transform3D
         );
     }
 
-    // Rotate matrix around Z axis
     inline glm::mat4 RotateOZ(float radians)
     {
         return glm::mat4(

@@ -1,4 +1,4 @@
-#include "lab_m1/Tema1/Tema1.h"
+﻿#include "lab_m1/Tema1/Tema1.h"
 #include "components/transform.h"
 #include <vector>
 #include <iostream>
@@ -7,6 +7,20 @@
 
 using namespace std;
 using namespace m1;
+
+static bool SamePointXZ(const glm::vec3& a, const glm::vec3& b, float eps = 1e-3f)
+{
+    return fabs(a.x - b.x) < eps && fabs(a.z - b.z) < eps;
+}
+
+// Direction of rail r when LEAVING junctionPos
+static glm::vec3 ExitDirFromJunction(m1::Rail* r, const glm::vec3& junctionPos)
+{
+    if (SamePointXZ(r->startPosition, junctionPos)) {
+        return glm::normalize(r->endPosition - r->startPosition);
+    }
+    return glm::normalize(r->startPosition - r->endPosition);
+}
 
 Tema1::Tema1()
 {
@@ -107,10 +121,17 @@ void Tema1::OnKeyPress(int key, int mods)
     if (key == GLFW_KEY_SPACE && train.stopped && train.currentRail && train.currentRail->isJunction()) {
         // Take the first (default) path
         if (!train.currentRail->children.empty()) {
-            train.currentRail = train.currentRail->children[0];
+            glm::vec3 junctionPos = train.currentRail->startPosition;
+            Rail* next = train.currentRail->children[0];
+            glm::vec3 nextDir = ExitDirFromJunction(next, junctionPos);
+
+            train.currentRail = next;
             train.progress = 0.0f;
+            train.position = junctionPos;          // ✅ spawn at junction
+            train.angle = CalculateTrainAngle(nextDir);
+            train.incomingDir = nextDir;           // ✅ optional, consistent
             train.stopped = false;
-            std::cout << "Continuing on default path" << std::endl;
+
         }
     }
 }
@@ -638,417 +659,409 @@ void Tema1::RenderRails()
 
 void Tema1::InitializeRailNetwork()
 {
-    const float RAIL_Y = 0.05f;
+    const float Y = 0.05f;
 
-    // Clear any existing rails
-    for (Rail* rail : railNetwork) {
-        delete rail;
-    }
+    for (Rail* r : railNetwork) delete r;
     railNetwork.clear();
 
-    // ===== MAIN RECTANGULAR LOOP =====
-    // Bottom side: WEST from (15, -10) to (-15, -10)
-    Rail* rail1 = new Rail(
-        glm::vec3(15, RAIL_Y, -10),
-        glm::vec3(-15, RAIL_Y, -10),
-        RailType::BRIDGE
-    );
-    railNetwork.push_back(rail1);
+    auto MakeRail = [&](glm::vec3 a, glm::vec3 b, RailType t) {
+        Rail* r = new Rail(a, b, t);
+        railNetwork.push_back(r);
+        return r;
+        };
 
-    // Left side: NORTH from (-15, -10) to (-15, 10)
-    Rail* rail2 = new Rail(
-        glm::vec3(-15, RAIL_Y, -10),
-        glm::vec3(-15, RAIL_Y, -4),
-        RailType::NORMAL
-    );
-    railNetwork.push_back(rail2);
-    rail1->children.push_back(rail2);
+    auto MakeJunction = [&](glm::vec3 p, RailType jt) {
+        Rail* j = new Rail(p, p, jt); // zero length junction
+        railNetwork.push_back(j);
+        return j;
+        };
 
-    Rail* rail3 = new Rail(
-        glm::vec3(-15, RAIL_Y, -4),
-        glm::vec3(-15, RAIL_Y, 4),
-        RailType::BRIDGE
-    );
-    railNetwork.push_back(rail3);
-    rail2->children.push_back(rail3);
+    // Corner points
+    glm::vec3 A(-15, Y, -10);
+    glm::vec3 B(-15, Y, 10);
+    glm::vec3 C(15, Y, 10);
+    glm::vec3 D(15, Y, -10);
 
-    Rail* rail4 = new Rail(
-        glm::vec3(-15, RAIL_Y, 4),
-        glm::vec3(-15, RAIL_Y, 10),
-        RailType::BRIDGE
-    );
-    railNetwork.push_back(rail4);
-    rail3->children.push_back(rail4);
+    // Midpoints (T junctions)
+    glm::vec3 Ttop(0, Y, 10);
+    glm::vec3 Tright(15, Y, 0);
+    glm::vec3 Tbot(0, Y, -10);
+    glm::vec3 Tleft(-15, Y, 0);
 
-    // Top side: EAST from (-15, 10) to first junction
-    Rail* rail5 = new Rail(
-        glm::vec3(-15, RAIL_Y, 10),
-        glm::vec3(-5, RAIL_Y, 10),
-        RailType::BRIDGE
-    );
-    railNetwork.push_back(rail5);
-    rail4->children.push_back(rail5);
+    // Center (cross junction)
+    glm::vec3 Center(0, Y, 0);
 
-    // ===== JUNCTION 1: T-junction at (-5, 10) - SPLIT =====
-    Rail* junction1 = new Rail(
-        glm::vec3(-5, RAIL_Y, 10),
-        glm::vec3(-5, RAIL_Y, 10),
-        RailType::JUNCTION_T
-    );
-    railNetwork.push_back(junction1);
-    rail5->children.push_back(junction1);
+    // Junction nodes (4 Ts + 4 corners + center)
+    Rail* JTop = MakeJunction(Ttop, RailType::JUNCTION_T);
+    Rail* JRight = MakeJunction(Tright, RailType::JUNCTION_T);
+    Rail* JBottom = MakeJunction(Tbot, RailType::JUNCTION_T);
+    Rail* JLeft = MakeJunction(Tleft, RailType::JUNCTION_T);
 
-    // Path A from Junction 1: Continue EAST (main path)
-    Rail* rail6 = new Rail(
-        glm::vec3(-5, RAIL_Y, 10),
-        glm::vec3(5, RAIL_Y, 10),
-        RailType::TUNNEL
-    );
-    railNetwork.push_back(rail6);
-    junction1->children.push_back(rail6);
+    Rail* JA = MakeJunction(A, RailType::JUNCTION_L);
+    Rail* JB = MakeJunction(B, RailType::JUNCTION_L);
+    Rail* JC = MakeJunction(C, RailType::JUNCTION_L);
+    Rail* JD = MakeJunction(D, RailType::JUNCTION_L);
 
-    // Path B from Junction 1: Go NORTH (mountain detour)
-    Rail* branchA1 = new Rail(
-        glm::vec3(-5, RAIL_Y, 10),
-        glm::vec3(-5, RAIL_Y, 16),
-        RailType::NORMAL
-    );
-    railNetwork.push_back(branchA1);
-    junction1->children.push_back(branchA1);
+    Rail* JCenter = MakeJunction(Center, RailType::JUNCTION_CROSS);
 
-    Rail* branchA2 = new Rail(
-        glm::vec3(-5, RAIL_Y, 16),
-        glm::vec3(-5, RAIL_Y, 19),
-        RailType::TUNNEL
-    );
-    railNetwork.push_back(branchA2);
-    branchA1->children.push_back(branchA2);
+    // ===== Outer loop rails (CLOCKWISE) split by T junctions =====
+    // Left edge:  A -> Tleft -> B
+    Rail* leftB = MakeRail(A, Tleft, RailType::BRIDGE);
+    Rail* leftT = MakeRail(Tleft, B, RailType::NORMAL);
 
-    Rail* branchA3 = new Rail(
-        glm::vec3(-5, RAIL_Y, 19),
-        glm::vec3(5, RAIL_Y, 19),
-        RailType::TUNNEL
-    );
-    railNetwork.push_back(branchA3);
-    branchA2->children.push_back(branchA3);
+    // Top edge:   B -> Ttop -> C
+    Rail* topL = MakeRail(B, Ttop, RailType::BRIDGE);
+    Rail* topR = MakeRail(Ttop, C, RailType::TUNNEL);
 
-    Rail* branchA4 = new Rail(
-        glm::vec3(5, RAIL_Y, 19),
-        glm::vec3(5, RAIL_Y, 16),
-        RailType::TUNNEL
-    );
-    railNetwork.push_back(branchA4);
-    branchA3->children.push_back(branchA4);
+    // Right edge: C -> Tright -> D
+    Rail* rightT = MakeRail(C, Tright, RailType::NORMAL);
+    Rail* rightB = MakeRail(Tright, D, RailType::BRIDGE);
 
-    Rail* branchA5 = new Rail(
-        glm::vec3(5, RAIL_Y, 16),
-        glm::vec3(5, RAIL_Y, 10),
-        RailType::NORMAL
-    );
-    railNetwork.push_back(branchA5);
-    branchA4->children.push_back(branchA5);
+    // Bottom:     D -> Tbot -> A
+    Rail* botR = MakeRail(D, Tbot, RailType::NORMAL);
+    Rail* botL = MakeRail(Tbot, A, RailType::TUNNEL);
 
-    // ===== JUNCTION 2: T-junction at (5, 10) - MERGE with CHOICES =====
-    // This junction allows trains to go EAST or WEST
-    Rail* junction2 = new Rail(
-        glm::vec3(5, RAIL_Y, 10),
-        glm::vec3(5, RAIL_Y, 10),
-        RailType::JUNCTION_T
-    );
-    railNetwork.push_back(junction2);
-    rail6->children.push_back(junction2);      // Main path enters from WEST
-    branchA5->children.push_back(junction2);   // Branch enters from SOUTH
+    // ===== Outer loop rails (COUNTERCLOCKWISE) = reverse rails =====
+    Rail* leftB_r = MakeRail(Tleft, A, RailType::BRIDGE);
+    Rail* leftT_r = MakeRail(B, Tleft, RailType::NORMAL);
 
-    // Exit 1: Continue EAST (main loop continues)
-    Rail* rail7 = new Rail(
-        glm::vec3(5, RAIL_Y, 10),
-        glm::vec3(15, RAIL_Y, 10),
-        RailType::NORMAL
-    );
-    railNetwork.push_back(rail7);
-    junction2->children.push_back(rail7);
+    Rail* topL_r = MakeRail(Ttop, B, RailType::BRIDGE);
+    Rail* topR_r = MakeRail(C, Ttop, RailType::TUNNEL);
 
-    // Exit 2: Go back WEST (return via main path)
-    Rail* rail6_reverse = new Rail(
-        glm::vec3(5, RAIL_Y, 10),
-        glm::vec3(-5, RAIL_Y, 10),
-        RailType::NORMAL
-    );
-    railNetwork.push_back(rail6_reverse);
-    junction2->children.push_back(rail6_reverse);
+    Rail* rightT_r = MakeRail(Tright, C, RailType::NORMAL);
+    Rail* rightB_r = MakeRail(D, Tright, RailType::BRIDGE);
 
-    // Connect reverse path back to junction 1
-    rail6_reverse->children.push_back(junction1);
+    Rail* botR_r = MakeRail(Tbot, D, RailType::NORMAL);
+    Rail* botL_r = MakeRail(A, Tbot, RailType::TUNNEL);
 
-    // Right side: SOUTH from (15, 10) to (15, -10)
-    Rail* rail8 = new Rail(
-        glm::vec3(15, RAIL_Y, 10),
-        glm::vec3(15, RAIL_Y, 4),
-        RailType::NORMAL
-    );
-    railNetwork.push_back(rail8);
-    rail7->children.push_back(rail8);
+    // ===== Spurs to/from center =====
+    // T -> Center
+    Rail* spurTop = MakeRail(Ttop, Center, RailType::NORMAL);
+    Rail* spurRight = MakeRail(Tright, Center, RailType::NORMAL);
+    Rail* spurBottom = MakeRail(Tbot, Center, RailType::NORMAL);
+    Rail* spurLeft = MakeRail(Tleft, Center, RailType::NORMAL);
 
-    Rail* rail9 = new Rail(
-        glm::vec3(15, RAIL_Y, 4),
-        glm::vec3(15, RAIL_Y, -4),
-        RailType::BRIDGE
-    );
-    railNetwork.push_back(rail9);
-    rail8->children.push_back(rail9);
+    // Center -> T (so progress=0 spawns at Center correctly)
+    Rail* cTop = MakeRail(Center, Ttop, RailType::NORMAL);
+    Rail* cRight = MakeRail(Center, Tright, RailType::NORMAL);
+    Rail* cBottom = MakeRail(Center, Tbot, RailType::NORMAL);
+    Rail* cLeft = MakeRail(Center, Tleft, RailType::NORMAL);
 
-    Rail* rail10 = new Rail(
-        glm::vec3(15, RAIL_Y, -4),
-        glm::vec3(15, RAIL_Y, -10),
-        RailType::NORMAL
-    );
-    railNetwork.push_back(rail10);
-    rail9->children.push_back(rail10);
+    // ===== Wire: segments -> junctions (both directions) =====
 
-    // CLOSE THE LOOP
-    rail10->children.push_back(rail1);
+    // --- Left T junction (Tleft) ---
+    leftB->children.push_back(JLeft);
+    leftB_r->children.push_back(JA);            // Tleft->A goes to corner A junction
+    JLeft->children.push_back(leftT);           // to B (clockwise)
+    JLeft->children.push_back(leftB_r);         // to A (counterclockwise)
+    JLeft->children.push_back(spurLeft);        // to Center
 
-    // Initialize train
-    train.currentRail = rail1;
+    // --- Top T junction (Ttop) ---
+    topL->children.push_back(JTop);
+    topL_r->children.push_back(JB);             // Ttop->B goes to corner B junction
+    JTop->children.push_back(topR);             // to C (clockwise)
+    JTop->children.push_back(topL_r);           // to B (counterclockwise)
+    JTop->children.push_back(spurTop);          // to Center
+
+    // --- Right T junction (Tright) ---
+    rightT->children.push_back(JRight);
+    rightT_r->children.push_back(JC);           // Tright->C goes to corner C junction
+    JRight->children.push_back(rightB);         // to D (clockwise)
+    JRight->children.push_back(rightT_r);       // to C (counterclockwise)
+    JRight->children.push_back(spurRight);      // to Center
+
+    // --- Bottom T junction (Tbot) ---
+    botR->children.push_back(JBottom);
+    botR_r->children.push_back(JD);             // Tbot->D goes to corner D junction
+    JBottom->children.push_back(botL);          // to A (clockwise)
+    JBottom->children.push_back(botR_r);        // to D (counterclockwise)
+    JBottom->children.push_back(spurBottom);    // to Center
+
+    // ===== Wire: corners (L junctions) so reverse direction continues =====
+
+    // Corner A connects (A->Tleft clockwise) and (A->Tbot counterclockwise)
+    botL->children.push_back(JA);               // Tbot->A arrives at A
+    JA->children.push_back(leftB);              // A->Tleft
+    JA->children.push_back(botL_r);             // A->Tbot (reverse of botL)
+
+    // Corner B connects (B->Ttop clockwise) and (B->Tleft counterclockwise)
+    leftT->children.push_back(JB);              // Tleft->B arrives at B
+    JB->children.push_back(topL);               // B->Ttop
+    JB->children.push_back(leftT_r);            // B->Tleft (reverse of leftT)
+
+    // Corner C connects (C->Tright clockwise) and (C->Ttop counterclockwise)
+    topR->children.push_back(JC);               // Ttop->C arrives at C
+    JC->children.push_back(rightT);             // C->Tright
+    JC->children.push_back(topR_r);             // C->Ttop (reverse of topR)
+
+    // Corner D connects (D->Tbot clockwise) and (D->Tright counterclockwise)
+    rightB->children.push_back(JD);             // Tright->D arrives at D
+    JD->children.push_back(botR);               // D->Tbot
+    JD->children.push_back(rightB_r);           // D->Tright (reverse of rightB)
+
+    // ===== Wire: reverse rails reaching corners also enter the corner junctions =====
+    botL_r->children.push_back(JBottom);        // A->Tbot reaches Tbot junction
+    leftT_r->children.push_back(JLeft);         // B->Tleft reaches Tleft junction
+    topR_r->children.push_back(JTop);           // C->Ttop reaches Ttop junction
+    rightB_r->children.push_back(JRight);       // D->Tright reaches Tright junction
+
+    // ===== Wire: spurs to/from center =====
+    spurTop->children.push_back(JCenter);
+    spurRight->children.push_back(JCenter);
+    spurBottom->children.push_back(JCenter);
+    spurLeft->children.push_back(JCenter);
+
+    JCenter->children.push_back(cTop);
+    JCenter->children.push_back(cRight);
+    JCenter->children.push_back(cBottom);
+    JCenter->children.push_back(cLeft);
+
+    cTop->children.push_back(JTop);
+    cRight->children.push_back(JRight);
+    cBottom->children.push_back(JBottom);
+    cLeft->children.push_back(JLeft);
+
+    // ===== Train init =====
+    train.currentRail = leftB; // start on loop
     train.progress = 0.0f;
     train.speed = 3.0f;
-    train.position = rail1->startPosition;
-    train.angle = CalculateTrainAngle(rail1->getDirection());
+    train.position = train.currentRail->startPosition;
+    train.angle = CalculateTrainAngle(train.currentRail->getDirection());
     train.stopped = false;
     train.selectedDirection = -1;
     train.queuedDirection = -1;
+    train.incomingDir = train.currentRail->getDirection();
 }
+
+
+
 
 void Tema1::HandleJunctionInput(int key)
 {
     if (!train.stopped || !train.currentRail) return;
     if (!train.currentRail->isJunction()) return;
 
-    int numChildren = train.currentRail->children.size();
+    int numChildren = (int)train.currentRail->children.size();
     if (numChildren == 0) return;
 
-    // Get train's current direction
-    glm::vec3 trainDir = glm::normalize(glm::vec3(
-        sin(train.angle),
-        0,
-        cos(train.angle)
-    ));
+    glm::vec3 junctionPos = train.currentRail->startPosition;
+    glm::vec3 trainDir = glm::normalize(train.incomingDir);
 
     int selectedIndex = -1;
 
-    // Calculate angles of each child rail relative to train's direction
-    std::vector<std::pair<int, float>> childAngles;  // index, angle
+    // Build list of valid exits (not U-turn)
+    std::vector<std::pair<int, float>> exits; // (childIndex, signedAngle)
 
     for (int i = 0; i < numChildren; i++) {
         Rail* child = train.currentRail->children[i];
-        glm::vec3 childDir = glm::normalize(child->endPosition - child->startPosition);
+        glm::vec3 childDir = ExitDirFromJunction(child, junctionPos);
 
-        // Calculate angle between train direction and child direction
         float dot = glm::dot(trainDir, childDir);
         float cross = trainDir.x * childDir.z - trainDir.z * childDir.x;
-        float angle = atan2(cross, dot);
+        float ang = atan2(cross, dot); // (-pi, pi)
 
-        childAngles.push_back({ i, angle });
+        float absAng = fabs(ang);
+
+        // Filter hard U-turns (near 180 degrees)
+        if (absAng < (3.0f * (float)M_PI / 4.0f)) {
+            exits.push_back({ i, ang });
+        }
     }
 
-    // Interpret WASD based on train's perspective
+    if (exits.empty()) {
+        std::cout << ">>> No valid forward directions!\n";
+        return;
+    }
+
     if (key == GLFW_KEY_W) {
-        // Forward - choose rail most aligned with current direction (angle closest to 0)
-        float minAngleDiff = FLT_MAX;
-        for (auto& pair : childAngles) {
-            float angleDiff = abs(pair.second);
-            if (angleDiff < minAngleDiff) {
-                minAngleDiff = angleDiff;
-                selectedIndex = pair.first;
-            }
+        // choose closest to straight (angle ~ 0)
+        float best = FLT_MAX;
+        for (auto& e : exits) {
+            float d = fabs(e.second);
+            if (d < best) { best = d; selectedIndex = e.first; }
         }
     }
     else if (key == GLFW_KEY_A) {
-        // Left - choose rail to the left (negative angle, closest to -PI/2)
-        float targetAngle = -M_PI / 2.0f;
-        float minDiff = FLT_MAX;
-        for (auto& pair : childAngles) {
-            if (pair.second < 0) {  // Left turn
-                float diff = abs(pair.second - targetAngle);
-                if (diff < minDiff) {
-                    minDiff = diff;
-                    selectedIndex = pair.first;
-                }
+        // choose leftmost (~ -90)
+        float target = -(float)M_PI / 2.0f;
+        float best = FLT_MAX;
+        for (auto& e : exits) {
+            if (e.second < 0) {
+                float d = fabs(e.second - target);
+                if (d < best) { best = d; selectedIndex = e.first; }
             }
+        }
+        if (selectedIndex == -1) {
+            std::cout << ">>> Cannot turn left from here!\n";
+            return;
         }
     }
     else if (key == GLFW_KEY_D) {
-        // Right - choose rail to the right (positive angle, closest to PI/2)
-        float targetAngle = M_PI / 2.0f;
-        float minDiff = FLT_MAX;
-        for (auto& pair : childAngles) {
-            if (pair.second > 0) {  // Right turn
-                float diff = abs(pair.second - targetAngle);
-                if (diff < minDiff) {
-                    minDiff = diff;
-                    selectedIndex = pair.first;
-                }
+        // choose rightmost (~ +90)
+        float target = (float)M_PI / 2.0f;
+        float best = FLT_MAX;
+        for (auto& e : exits) {
+            if (e.second > 0) {
+                float d = fabs(e.second - target);
+                if (d < best) { best = d; selectedIndex = e.first; }
             }
         }
-    }
-
-    // Validate and apply selection
-    if (selectedIndex >= 0 && selectedIndex < numChildren) {
-        Rail* selectedRail = train.currentRail->children[selectedIndex];
-
-        std::cout << "\n>>> SELECTED DIRECTION: " << (key == GLFW_KEY_W ? "FORWARD (W)" :
-            key == GLFW_KEY_A ? "LEFT (A)" : "RIGHT (D)") << std::endl;
-        std::cout << ">>> Going to: (" << selectedRail->endPosition.x << ", "
-            << selectedRail->endPosition.y << ", " << selectedRail->endPosition.z << ")" << std::endl;
-        std::cout << ">>> Rail type: " << (selectedRail->type == RailType::NORMAL ? "Normal" :
-            selectedRail->type == RailType::BRIDGE ? "Bridge" :
-            selectedRail->type == RailType::TUNNEL ? "Tunnel" : "Unknown") << "\n" << std::endl;
-
-        train.currentRail = selectedRail;
-        train.progress = 0.0f;
-        train.stopped = false;
-        train.selectedDirection = -1;
+        if (selectedIndex == -1) {
+            std::cout << ">>> Cannot turn right from here!\n";
+            return;
+        }
     }
     else {
-        std::cout << ">>> Invalid direction selected!" << std::endl;
+        return;
     }
+
+    if (selectedIndex < 0 || selectedIndex >= numChildren) {
+        std::cout << ">>> Invalid selection!\n";
+        return;
+    }
+
+    Rail* selected = train.currentRail->children[selectedIndex];
+
+    // Update angle based on direction leaving junction on that rail
+    glm::vec3 chosenDir = ExitDirFromJunction(selected, junctionPos);
+    train.angle = CalculateTrainAngle(chosenDir);
+
+    train.currentRail = selected;
+    train.progress = 0.0f;
+    train.position = junctionPos;          // ✅ force spawn at junction point
+    train.incomingDir = chosenDir;         // ✅ optional but helps consistency
+    train.stopped = false;
+    train.selectedDirection = -1;
+
+
+    std::cout << ">>> Junction choice applied.\n";
 }
+
 
 void Tema1::UpdateTrainMovement(float deltaTime)
 {
     if (!train.currentRail || train.stopped) return;
 
-    // Move train along current rail
     float railLength = train.currentRail->getLength();
-    if (railLength == 0) {
-        // This is a junction (zero-length rail)
-        std::cout << "\n=== JUNCTION INFO ===" << std::endl;
-        std::cout << "Position: (" << train.currentRail->startPosition.x << ", "
-            << train.currentRail->startPosition.y << ", "
-            << train.currentRail->startPosition.z << ")" << std::endl;
-        std::cout << "Type: " << (train.currentRail->type == RailType::JUNCTION_T ? "T-Junction" :
-            train.currentRail->type == RailType::JUNCTION_L ? "L-Junction" :
-            train.currentRail->type == RailType::JUNCTION_CROSS ? "Cross-Junction" : "Unknown") << std::endl;
 
-        // Check if it's a SPLIT junction (multiple exits) or MERGE junction (single exit)
-        int numExits = train.currentRail->children.size();
-        std::cout << "Number of exits: " << numExits << std::endl;
+    // ===== If we are on a junction (zero-length rail) =====
+    if (railLength < 1e-6f) {
+        glm::vec3 junctionPos = train.currentRail->startPosition;
+        glm::vec3 trainDir = glm::normalize(train.incomingDir);
 
-        // Print all exit directions
-        for (int i = 0; i < numExits; i++) {
-            Rail* exit = train.currentRail->children[i];
-            glm::vec3 exitDir = exit->endPosition - exit->startPosition;
-            std::cout << "  Exit " << (i + 1) << ": to (" << exit->endPosition.x << ", "
-                << exit->endPosition.y << ", " << exit->endPosition.z << ")" << std::endl;
-        }
+        std::vector<Rail*> validExits;
 
-        if (numExits <= 1) {
-            // Merge junction or dead end - continue automatically
-            if (numExits == 1) {
-                train.currentRail = train.currentRail->children[0];
-                train.progress = 0.0f;
-                train.position = train.currentRail->startPosition;
-                std::cout << "Passing through merge junction automatically" << std::endl;
-                std::cout << "=====================\n" << std::endl;
-                return;
-            }
-            else {
-                // Dead end
-                train.stopped = true;
-                train.position = train.currentRail->startPosition;
-                std::cout << "End of track reached." << std::endl;
-                std::cout << "=====================\n" << std::endl;
-                return;
+        for (Rail* exit : train.currentRail->children) {
+            glm::vec3 exitDir = ExitDirFromJunction(exit, junctionPos);
+
+            float dot = glm::dot(trainDir, exitDir);
+            float cross = trainDir.x * exitDir.z - trainDir.z * exitDir.x;
+            float ang = atan2(cross, dot);
+            float absAng = fabs(ang);
+
+            if (absAng < (3.0f * (float)M_PI / 4.0f)) {
+                validExits.push_back(exit);
             }
         }
-        else {
-            // Split junction - stop and wait for input
+
+        if (validExits.empty()) {
             train.stopped = true;
-            train.position = train.currentRail->startPosition;
-            std::cout << "Train stopped at junction. Use W (forward), A (left), or D (right) to choose direction." << std::endl;
-            std::cout << "=====================\n" << std::endl;
+            train.position = junctionPos;
+            std::cout << "Dead end at junction.\n";
             return;
         }
+
+        if (validExits.size() == 1) {
+            Rail* next = validExits[0];
+            glm::vec3 nextDir = ExitDirFromJunction(next, junctionPos);
+            train.angle = CalculateTrainAngle(nextDir);
+
+            train.currentRail = next;
+            train.progress = 0.0f;
+            train.position = train.currentRail->startPosition;
+            return;
+        }
+
+        // multiple options -> wait for player
+        train.stopped = true;
+        train.position = junctionPos;
+        std::cout << "Stopped at junction: W forward / A left / D right\n";
+        return;
     }
 
+    // ===== Normal rail movement =====
     train.progress += (train.speed * deltaTime) / railLength;
 
-    // Check if train reached end of rail
     if (train.progress >= 1.0f) {
         train.progress = 1.0f;
         train.position = train.currentRail->endPosition;
 
-        // Move to next rail
         Rail* nextRail = train.currentRail->getNext();
-        if (nextRail) {
-            // Check if the NEXT rail is a junction
-            if (nextRail->isJunction()) {
-                // Move to junction
-                train.currentRail = nextRail;
-                train.progress = 0.0f;
-                train.position = nextRail->startPosition;
-
-                std::cout << "\n=== APPROACHING JUNCTION ===" << std::endl;
-                std::cout << "Position: (" << train.currentRail->startPosition.x << ", "
-                    << train.currentRail->startPosition.y << ", "
-                    << train.currentRail->startPosition.z << ")" << std::endl;
-
-                // Check if it's a split or merge junction
-                int numExits = nextRail->children.size();
-                std::cout << "Number of exits: " << numExits << std::endl;
-
-                if (numExits <= 1) {
-                    // Merge junction - continue automatically
-                    if (numExits == 1) {
-                        train.currentRail = nextRail->children[0];
-                        train.progress = 0.0f;
-                        std::cout << "Passing through merge junction automatically" << std::endl;
-                        std::cout << "============================\n" << std::endl;
-                    }
-                    else {
-                        train.stopped = true;
-                        std::cout << "End of track reached." << std::endl;
-                        std::cout << "============================\n" << std::endl;
-                    }
-                }
-                else {
-                    // Split junction - stop
-                    train.stopped = true;
-                    std::cout << "Train stopped at junction. Use W (forward), A (left), or D (right) to choose direction." << std::endl;
-                    std::cout << "============================\n" << std::endl;
-                }
-                return;
-            }
-            else {
-                // Move to next rail segment
-                std::cout << "Moving to rail: (" << nextRail->startPosition.x << ", "
-                    << nextRail->startPosition.y << ", " << nextRail->startPosition.z << ") -> ("
-                    << nextRail->endPosition.x << ", " << nextRail->endPosition.y << ", "
-                    << nextRail->endPosition.z << ") | Type: "
-                    << (nextRail->type == RailType::NORMAL ? "Normal" :
-                        nextRail->type == RailType::BRIDGE ? "Bridge" :
-                        nextRail->type == RailType::TUNNEL ? "Tunnel" : "Unknown") << std::endl;
-
-                train.currentRail = nextRail;
-                train.progress = 0.0f;
-            }
-        }
-        else {
-            // No next rail, stop
+        if (!nextRail) {
             train.stopped = true;
-            std::cout << "End of track reached." << std::endl;
+            std::cout << "End of track.\n";
             return;
         }
+
+        // If next is junction: save incomingDir BEFORE switching
+        if (nextRail->isJunction()) {
+            train.incomingDir = glm::normalize(train.currentRail->endPosition - train.currentRail->startPosition);
+
+            train.currentRail = nextRail;
+            train.progress = 0.0f;
+            train.position = nextRail->startPosition;
+
+            // evaluate exits immediately (auto if single, stop if multiple)
+            glm::vec3 junctionPos = train.currentRail->startPosition;
+            glm::vec3 trainDir = glm::normalize(train.incomingDir);
+
+            std::vector<Rail*> validExits;
+            for (Rail* exit : train.currentRail->children) {
+                glm::vec3 exitDir = ExitDirFromJunction(exit, junctionPos);
+                float dot = glm::dot(trainDir, exitDir);
+                float cross = trainDir.x * exitDir.z - trainDir.z * exitDir.x;
+                float ang = atan2(cross, dot);
+                if (fabs(ang) < (3.0f * (float)M_PI / 4.0f)) {
+                    validExits.push_back(exit);
+                }
+            }
+
+            if (validExits.empty()) {
+                train.stopped = true;
+                std::cout << "Dead end at junction.\n";
+                return;
+            }
+
+            if (validExits.size() == 1) {
+                Rail* only = validExits[0];
+                glm::vec3 onlyDir = ExitDirFromJunction(only, junctionPos);
+                train.angle = CalculateTrainAngle(onlyDir);
+
+                train.currentRail = only;
+                train.progress = 0.0f;
+                train.stopped = false;
+                return;
+            }
+
+            train.stopped = true;
+            std::cout << "Stopped at junction: W/A/D.\n";
+            return;
+        }
+
+        // Normal transition to next segment
+        train.currentRail = nextRail;
+        train.progress = 0.0f;
     }
 
-    // Calculate current position by interpolation
+    // Interpolate position
     train.position = train.currentRail->startPosition +
         (train.currentRail->endPosition - train.currentRail->startPosition) * train.progress;
 
-    // Calculate train angle from direction
-    glm::vec3 direction = train.currentRail->getDirection();
-    train.angle = CalculateTrainAngle(direction);
+    // Update angle from current rail direction
+    glm::vec3 dir = train.currentRail->getDirection();
+    train.angle = CalculateTrainAngle(dir);
 }
+
 
 RailType Tema1::DetermineTerrainType(glm::vec3 position)
 {
