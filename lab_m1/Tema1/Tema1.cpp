@@ -97,7 +97,154 @@ void Tema1::Update(float deltaTimeSeconds) {
 
     // Render the locomotive at its current position
     RenderLocomotive(train.position, train.angle);
+
+    // update + render wagons
+    UpdateWagons(deltaTimeSeconds);
+    for (auto& w : wagons) {
+        RenderWagon(w.position, w.angle);
+    }
+
 }
+void Tema1::UpdateWagons(float dt)
+{
+    // each wagon tries to reach (locoTraveledDist - distBehind)
+    for (auto& w : wagons) {
+        float desired = locoTraveledDist - w.distBehind;
+        if (desired <= 0.0f) continue;             // locomotive hasn't gone far enough yet
+
+        float delta = desired - w.traveledDist;
+        if (delta <= 0.0f) continue;
+
+        AdvanceCarByDistance(w, delta);
+        w.traveledDist = desired;
+    }
+}
+void Tema1::AdvanceCarByDistance(TrainCar& car, float deltaDist)
+{
+    const float EPS = 1e-6f;
+
+    while (deltaDist > EPS && car.currentRail) {
+        float len = car.currentRail->getLength();
+
+        // ---- junction (zero length) ----
+        if (len < EPS) {
+            m1::Rail* chosen = ChooseExitForCarAtJunction(car, car.currentRail);
+
+            if (!chosen) {
+                // dead end -> just stay
+                car.position = car.currentRail->startPosition;
+                return;
+            }
+
+            glm::vec3 jp = car.currentRail->startPosition;
+            glm::vec3 dir = ExitDirFromJunction(chosen, jp);
+
+            car.currentRail = chosen;
+            car.progress = 0.0f;
+            car.position = jp;
+            car.incomingDir = dir;
+            car.angle = CalculateTrainAngle(dir);
+            continue; // still have deltaDist to consume on the new rail
+        }
+
+        // ---- normal segment ----
+        float remainingOnRail = (1.0f - car.progress) * len;
+
+        if (deltaDist < remainingOnRail) {
+            car.progress += deltaDist / len;
+            car.position = car.currentRail->startPosition +
+                (car.currentRail->endPosition - car.currentRail->startPosition) * car.progress;
+
+            glm::vec3 dir = car.currentRail->getDirection();
+            car.angle = CalculateTrainAngle(dir);
+            return;
+        }
+
+        // consume rest of this rail
+        deltaDist -= remainingOnRail;
+        car.progress = 1.0f;
+        car.position = car.currentRail->endPosition;
+
+        // next rail
+        m1::Rail* next = car.currentRail->getNext();
+
+        if (!next) return;
+
+        // store incomingDir before entering junction
+        if (next->isJunction()) {
+            car.incomingDir = glm::normalize(car.currentRail->endPosition - car.currentRail->startPosition);
+            car.currentRail = next;
+            car.progress = 0.0f;
+            car.position = next->startPosition;
+            continue;
+        }
+
+        car.currentRail = next;
+        car.progress = 0.0f;
+        // angle will be set next loop / after interpolation
+    }
+}
+m1::Rail* Tema1::ChooseExitForCarAtJunction(TrainCar& car, m1::Rail* junction)
+{
+    if (!junction || !junction->isJunction()) return nullptr;
+
+    glm::vec3 jp = junction->startPosition;
+    glm::vec3 trainDir = glm::normalize(car.incomingDir);
+
+    std::vector<m1::Rail*> validExits;
+    validExits.reserve(junction->children.size());
+
+    for (Rail* exit : junction->children) {
+        glm::vec3 exitDir = ExitDirFromJunction(exit, jp);
+
+        float dot = glm::dot(trainDir, exitDir);
+        float cross = trainDir.x * exitDir.z - trainDir.z * exitDir.x;
+        float ang = atan2(cross, dot);
+
+        if (fabs(ang) < (3.0f * (float)M_PI / 4.0f)) {
+            validExits.push_back(exit);
+        }
+    }
+
+    if (validExits.empty()) return nullptr;
+    if (validExits.size() == 1) return validExits[0];
+
+    // try replay from decisionLog
+    if (car.decisionCursor < decisionLog.size()) {
+        Rail* wanted = decisionLog[car.decisionCursor];
+
+        for (Rail* e : validExits) {
+            if (e == wanted) {
+                car.decisionCursor++;
+                return e;
+            }
+        }
+
+        // decision doesn't match -> still advance cursor to avoid getting stuck repeating wrong one
+        car.decisionCursor++;
+    }
+
+    // fallback: choose "straightest"
+    Rail* best = validExits[0];
+    float bestAbs = FLT_MAX;
+
+    for (Rail* e : validExits) {
+        glm::vec3 ed = ExitDirFromJunction(e, jp);
+
+        float dot = glm::dot(trainDir, ed);
+        float cross = trainDir.x * ed.z - trainDir.z * ed.x;
+        float ang = atan2(cross, dot);
+
+        float absAng = fabs(ang);
+        if (absAng < bestAbs) {
+            bestAbs = absAng;
+            best = e;
+        }
+    }
+
+    return best;
+}
+
 
 void Tema1::FrameEnd()
 {
@@ -119,21 +266,54 @@ void Tema1::OnKeyPress(int key, int mods)
 
     // Handle SPACE to continue on default path at junction
     if (key == GLFW_KEY_SPACE && train.stopped && train.currentRail && train.currentRail->isJunction()) {
-        // Take the first (default) path
         if (!train.currentRail->children.empty()) {
+
+            // ---- LOG the decision for wagons (before switching) ----
             glm::vec3 junctionPos = train.currentRail->startPosition;
-            Rail* next = train.currentRail->children[0];
-            glm::vec3 nextDir = ExitDirFromJunction(next, junctionPos);
+            glm::vec3 trainDir = glm::normalize(train.incomingDir);
 
-            train.currentRail = next;
+            std::vector<Rail*> validExits;
+            for (Rail* exit : train.currentRail->children) {
+                glm::vec3 exitDir = ExitDirFromJunction(exit, junctionPos);
+                float dot = glm::dot(trainDir, exitDir);
+                float cross = trainDir.x * exitDir.z - trainDir.z * exitDir.x;
+                float ang = atan2(cross, dot);
+
+                if (fabs(ang) < (3.0f * (float)M_PI / 4.0f)) {
+                    validExits.push_back(exit);
+                }
+            }
+
+            Rail* chosen = nullptr;
+            if (!validExits.empty()) {
+                chosen = validExits[0]; // default = first VALID (not U-turn)
+            }
+            else {
+                chosen = train.currentRail->children[0]; // fallback
+            }
+
+            LogJunctionDecisionIfNeeded(train.currentRail, chosen, validExits);
+
+            // ---- NOW actually apply the chosen rail to the locomotive ----
+            glm::vec3 nextDir = ExitDirFromJunction(chosen, junctionPos);
+
+            train.currentRail = chosen;
             train.progress = 0.0f;
-            train.position = junctionPos;          // ✅ spawn at junction
+            train.position = junctionPos;
             train.angle = CalculateTrainAngle(nextDir);
-            train.incomingDir = nextDir;           // ✅ optional, consistent
+            train.incomingDir = nextDir;
             train.stopped = false;
-
         }
     }
+
+}
+void Tema1::LogJunctionDecisionIfNeeded(Rail* junction, Rail* chosen, const std::vector<Rail*>& validExits)
+{
+    if (!junction || !junction->isJunction()) return;
+    if (validExits.size() <= 1) return;      // no real "choice"
+    if (!chosen) return;
+
+    decisionLog.push_back(chosen);
 }
 
 void Tema1::OnKeyRelease(int key, int mods)
@@ -831,6 +1011,34 @@ void Tema1::InitializeRailNetwork()
     train.selectedDirection = -1;
     train.queuedDirection = -1;
     train.incomingDir = train.currentRail->getDirection();
+
+    // reset logs/counters
+    decisionLog.clear();
+    locoTraveledDist = 0.0f;
+
+    // wagons (example: 2 wagons)
+    InitWagons(2, 2.2f);   // count, spacing (world-ish units)
+
+}
+void Tema1::InitWagons(int count, float spacing)
+{
+    wagons.clear();
+    wagons.reserve(count);
+
+    for (int i = 0; i < count; i++) {
+        TrainCar w;
+        w.currentRail = train.currentRail;
+        w.progress = train.progress;
+        w.position = train.position;
+        w.angle = train.angle;
+        w.incomingDir = train.incomingDir;
+
+        w.traveledDist = 0.0f;
+        w.distBehind = (i + 1) * spacing;   // wagon1 behind, wagon2 further behind...
+        w.decisionCursor = 0;
+
+        wagons.push_back(w);
+    }
 }
 
 
@@ -921,6 +1129,14 @@ void Tema1::HandleJunctionInput(int key)
     }
 
     Rail* selected = train.currentRail->children[selectedIndex];
+    // build validExits list (same logic you already use)
+    std::vector<Rail*> validExitsRails;
+    for (auto& e : exits) {
+        validExitsRails.push_back(train.currentRail->children[e.first]);
+    }
+
+    // log only if this junction actually had multiple valid exits
+    LogJunctionDecisionIfNeeded(train.currentRail, selected, validExitsRails);
 
     // Update angle based on direction leaving junction on that rail
     glm::vec3 chosenDir = ExitDirFromJunction(selected, junctionPos);
@@ -940,7 +1156,12 @@ void Tema1::HandleJunctionInput(int key)
 
 void Tema1::UpdateTrainMovement(float deltaTime)
 {
+
     if (!train.currentRail || train.stopped) return;
+
+    // accumulate locomotive travel distance
+    locoTraveledDist += train.speed * deltaTime;
+
 
     float railLength = train.currentRail->getLength();
 

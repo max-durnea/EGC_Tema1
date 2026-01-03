@@ -5,6 +5,24 @@
 #include "utils/glm_utils.h"
 #include "lab_m1/Tema1/text_renderer.h"
 #include <queue>
+#include <deque>
+
+namespace m1 { class Rail; }   // forward declare, so Rail* works here
+
+struct TrainCar {
+    m1::Rail* currentRail = nullptr;   // <-- REQUIRED (your error)
+    float progress = 0.0f;
+
+    glm::vec3 position = glm::vec3(0);
+    float angle = 0.0f;
+
+    glm::vec3 incomingDir = glm::vec3(0, 0, 1);  // <-- MUST be vec3 for glm::normalize
+
+    float traveledDist = 0.0f;
+    float distBehind = 0.0f;
+
+    int decisionCursor = 0;
+};
 
 namespace m1
 {
@@ -150,6 +168,26 @@ namespace m1
         // Train and rail data
         Train train;
         std::vector<Rail*> railNetwork;
+        // locomotive distance traveled (only while moving)
+        float locoTraveledDist = 0.0f;
+
+        // global log of *chosen exits* at junctions (only when multiple options exist)
+        std::vector<Rail*> decisionLog;
+
+        // wagons
+        std::vector<TrainCar> wagons;
+
+        // helpers
+        void InitWagons(int count, float spacing);
+        void UpdateWagons(float dt);
+
+        void AdvanceCarByDistance(TrainCar& car, float deltaDist);
+        // inside class Tema1
+        m1::Rail* ChooseExitForCarAtJunction(TrainCar& car, m1::Rail* junction);
+        void LogJunctionDecisionIfNeeded(m1::Rail* junction, m1::Rail* chosen,
+            const std::vector<m1::Rail*>& validExits);
+
+
     };
 };   // namespace m1
 
